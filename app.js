@@ -75,8 +75,8 @@ function getDailyWord(lang) {
 
 function init() {
   state.lang = localStorage.getItem('wordle_lang') || DATA.config.defaultLanguage;
-  state.currentUser = getSessionUser();  // load FIRST so applyLanguage and updateHeaderAuth see the user
-  applyLanguage(state.lang);
+state.currentUser = getSessionUser();
+applyLanguage(state.lang);
   updateHeaderAuth();
   navigate('home');
   startCountdownHeader();
@@ -139,7 +139,7 @@ function applyLanguage(lang) {
   setEl('footer-ds', lang === 'de' ? 'Datenschutz' : 'Privacy Policy');
   setEl('footer-agb', lang === 'de' ? 'Nutzungsbedingungen' : 'Terms of Use');
   setEl('footer-ko', lang === 'de' ? 'Kontakt' : 'Contact');
-  setEl('footer-copy', lang === 'de' ? '© 2025 Henrik Seebach · All rights reserved.' : '© 2025 Henrik Seebach · Alle Rechte vorbehalten.');
+  setEl('footer-copy', lang === 'de' ? '© 2026 Henrik Seebach · Alle Rechte vorbehalten.' : '© 2026 Henrik Seebach · All rights reserved.');
 
   ['imp','ds','agb','ko'].forEach(p => {
     const el = document.getElementById(`back-home-${p}`);
@@ -229,10 +229,18 @@ function applyLanguage(lang) {
   }
 }
 
+// ALT
 function switchLanguage(lang) {
-  if (state.isAnimating) return;  // block during tile reveal
   applyLanguage(lang);
-  // Immediately refresh whichever page is currently visible
+  setupProfilePage();
+  setupLeaderboardPage();
+  if (document.getElementById('page-game').classList.contains('active')) setupGamePage();
+}
+
+// NEU
+function switchLanguage(lang) {
+  if (state.isAnimating) return;
+  applyLanguage(lang);
   const activePage = document.querySelector('.page.active');
   if (!activePage) return;
   const pageId = activePage.id;
@@ -564,7 +572,7 @@ async function updateStats(won) {
       else streak = 1;
       bestStreak = Math.max(bestStreak, streak);
     } else { streak = 0; }
-    const statsData = { user_id: userId, lang, played, won: wonCount, total_attempts: totalAttempts, streak, best_streak: bestStreak, last_played_date: won ? today : (s ? s.last_played_date : null) };
+    const statsData = { user_id: userId, username: state.currentUser.username, lang, played, won: wonCount, total_attempts: totalAttempts, streak, best_streak: bestStreak, last_played_date: won ? today : (s ? s.last_played_date : null) };
     if (s) await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`, { method: 'PATCH', body: JSON.stringify(statsData), prefer: 'return=minimal' });
     else await sbFetch('stats', { method: 'POST', body: JSON.stringify(statsData), prefer: 'return=minimal' });
     if (won) {
@@ -646,29 +654,101 @@ async function setupProfilePage() {
 }
 
 async function setupLeaderboardPage() {
-  const todayKey = getTodayKey(state.lang);
-  const oldList = document.getElementById('leaderboard-list');
-  const newList = document.createElement('div');
-  newList.className = oldList.className; newList.id = oldList.id;
-  newList.innerHTML = `<div class="lb-empty">⏳</div>`;
-  oldList.parentNode.replaceChild(newList, oldList);
+  renderLeaderboard();
+}
+
+const lbState = { tab: 'today', sortToday: 'attempts', sortAll: 'avg' };
+
+function renderLeaderboard() {
+  const de = state.lang === 'de';
+  const container = document.getElementById('leaderboard-container-inner');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="lb-tabs">
+      <button class="lb-tab${lbState.tab === 'today' ? ' active' : ''}" onclick="lbSetTab('today')">${de ? '📅 Heute' : '📅 Today'}</button>
+      <button class="lb-tab${lbState.tab === 'all' ? ' active' : ''}" onclick="lbSetTab('all')">${de ? '🏆 Gesamt' : '🏆 All-time'}</button>
+    </div>
+    <div class="lb-sort-row" id="lb-sort-row"></div>
+    <div class="leaderboard-list" id="leaderboard-list"><div class="lb-empty">⏳</div></div>
+  `;
+  renderSortPills();
+  fetchAndRenderList();
+}
+
+function renderSortPills() {
+  const de = state.lang === 'de';
+  const row = document.getElementById('lb-sort-row');
+  if (!row) return;
+  const pills = lbState.tab === 'today'
+    ? [{ key: 'attempts', label: de ? 'Versuche' : 'Attempts' }, { key: 'time', label: de ? 'Zeit' : 'Time' }]
+    : [{ key: 'avg', label: de ? 'Ø Versuche' : 'Avg. Attempts' }, { key: 'streak', label: de ? 'Aktuelle Serie' : 'Current Streak' }, { key: 'best', label: de ? 'Längste Serie' : 'Best Streak' }];
+  const current = lbState.tab === 'today' ? lbState.sortToday : lbState.sortAll;
+  row.innerHTML = pills.map(p =>
+    `<button class="lb-pill${p.key === current ? ' active' : ''}" onclick="lbSetSort('${p.key}')">${p.label}</button>`
+  ).join('');
+}
+
+function lbSetTab(tab) { lbState.tab = tab; renderLeaderboard(); }
+
+function lbSetSort(sort) {
+  if (lbState.tab === 'today') lbState.sortToday = sort;
+  else lbState.sortAll = sort;
+  renderSortPills();
+  fetchAndRenderList();
+}
+
+async function fetchAndRenderList() {
+  const list = document.getElementById('leaderboard-list');
+  if (!list) return;
+  list.innerHTML = '<div class="lb-empty">⏳</div>';
+  const de = state.lang === 'de';
+  const medals = ['🥇','🥈','🥉'];
   try {
-    const entries = await sbFetch(`leaderboard?day_key=eq.${todayKey}&order=attempts.asc,time_seconds.asc&limit=10`);
-    const list = document.getElementById('leaderboard-list');
-    if (!entries || entries.length === 0) { list.innerHTML = `<div class="lb-empty">${state.lang === 'de' ? 'Noch keine Einträge heute.' : 'No entries today yet.'}</div>`; return; }
-    const medals = ['🥇','🥈','🥉'];
-    list.innerHTML = entries.map((entry, i) => {
-      const isMe = state.currentUser && entry.user_id === state.currentUser.id;
-      const rankDisplay = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;
-      return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
-        ${rankDisplay}
-        <div class="lb-avatar">${entry.username[0].toUpperCase()}</div>
-        <div class="lb-name">${entry.username}${isMe ? `<span class="lb-you">${state.lang === 'de' ? 'Du' : 'You'}</span>` : ''}</div>
-        <div class="lb-attempts">${entry.attempts}/${DATA.config.maxAttempts}</div>
-        <div class="lb-time">${formatTime(entry.time_seconds)}</div>
-      </div>`;
-    }).join('');
-  } catch (e) { document.getElementById('leaderboard-list').innerHTML = `<div class="lb-empty">Fehler beim Laden.</div>`; }
+    if (lbState.tab === 'today') {
+      const todayKey = getTodayKey(state.lang);
+      const order = lbState.sortToday === 'time' ? 'time_seconds.asc,attempts.asc' : 'attempts.asc,time_seconds.asc';
+      const entries = await sbFetch(`leaderboard?day_key=eq.${todayKey}&lang=eq.${state.lang}&order=${order}&limit=10`);
+      if (!entries || entries.length === 0) { list.innerHTML = `<div class="lb-empty">${de ? 'Noch keine Einträge heute.' : 'No entries today yet.'}</div>`; return; }
+      list.innerHTML = entries.map((e, i) => {
+        const isMe = state.currentUser && e.user_id === state.currentUser.id;
+        const rank = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;
+        const hi = lbState.sortToday === 'time'
+          ? `<div class="lb-stat-hi">${formatTime(e.time_seconds)}</div><div class="lb-stat-lo">${e.attempts}/${DATA.config.maxAttempts}</div>`
+          : `<div class="lb-stat-hi">${e.attempts}/${DATA.config.maxAttempts}</div><div class="lb-stat-lo">${formatTime(e.time_seconds)}</div>`;
+        return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
+          ${rank}
+          <div class="lb-avatar">${e.username[0].toUpperCase()}</div>
+          <div class="lb-name">${e.username}${isMe ? `<span class="lb-you">${de ? 'Du' : 'You'}</span>` : ''}</div>
+          ${hi}
+        </div>`;
+      }).join('');
+    } else {
+      const sort = lbState.sortAll;
+      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : 'best_streak.desc,streak.desc';
+      const rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&order=${order}&limit=10&select=*,users(username)`);
+      if (!rows || rows.length === 0) { list.innerHTML = `<div class="lb-empty">${de ? 'Noch keine Daten.' : 'No data yet.'}</div>`; return; }
+      list.innerHTML = rows.map((s, i) => {
+        const isMe = state.currentUser && s.user_id === state.currentUser.id;
+        const rank = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;
+        const name = s.users?.username || s.username || '?';
+        const avg = s.won > 0 ? (s.total_attempts / s.won).toFixed(1) : '—';
+        const hi = sort === 'avg'
+          ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
+          : sort === 'streak'
+          ? `<div class="lb-stat-hi">🔥 ${s.streak}</div><div class="lb-stat-lo">${de ? 'Beste' : 'Best'}: ${s.best_streak}</div>`
+          : `<div class="lb-stat-hi">🏆 ${s.best_streak}</div><div class="lb-stat-lo">${de ? 'Aktuell' : 'Now'}: ${s.streak}</div>`;
+        return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
+          ${rank}
+          <div class="lb-avatar">${name[0].toUpperCase()}</div>
+          <div class="lb-name">${name}${isMe ? `<span class="lb-you">${de ? 'Du' : 'You'}</span>` : ''}</div>
+          ${hi}
+        </div>`;
+      }).join('');
+    }
+  } catch(e) {
+    const l = document.getElementById('leaderboard-list');
+    if (l) l.innerHTML = `<div class="lb-empty">${de ? 'Fehler beim Laden.' : 'Error loading.'}</div>`;
+  }
 }
 
 function shareResult() {

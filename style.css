@@ -374,3 +374,27 @@
       .legal-card { padding: 24px 18px; }
       .legal-title { font-size: 1.3rem; }
     }
+
+    /* ── Leaderboard tabs ─────────────────────────────────────── */
+.lb-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.lb-tab {
+  flex: 1; padding: 10px 0; border-radius: 10px; border: 1px solid var(--surface-border);
+  background: var(--surface); color: var(--text-muted); font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: all 0.18s;
+}
+.lb-tab:hover { border-color: var(--primary); color: var(--text); }
+.lb-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 14px var(--primary-glow); }
+
+/* ── Sort pills ───────────────────────────────────────────── */
+.lb-sort-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.lb-pill {
+  padding: 6px 14px; border-radius: 100px; border: 1px solid var(--surface-border);
+  background: var(--surface); color: var(--text-muted); font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.lb-pill:hover { border-color: var(--primary); color: var(--text); }
+.lb-pill.active { background: rgba(232,88,10,0.15); border-color: var(--primary); color: var(--primary); }
+
+/* ── Stat columns ─────────────────────────────────────────── */
+.lb-stat-hi { font-family: var(--font-mono); font-size: 0.95rem; color: var(--primary); font-weight: 700; min-width: 60px; text-align: right; }
+.lb-stat-lo { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); min-width: 60px; text-align: right; }

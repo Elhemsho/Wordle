@@ -1,6 +1,5 @@
 Fixes:
 - emojis raus
-- github machen
 - antatt der zeit bis zum nächsten einen modus wo man immer kann (fun mode geht nicht in die statisikien)
 - bestenliste für insgesamt
 - wenn man es nicht schafft soll versuche bei avg als 10 gelten
@@ -9,6 +8,6 @@ Ideen:
 - freunde adden
 - responsive design
 - einstellungen (dark mode / musik?)
-- statistics / google
+- google
 - 404 seite
 - dordle mdous...
