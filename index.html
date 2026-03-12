@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WORDLE</title>
+  <link rel="icon" type="image/png" href="assets/images/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== HEADER ===== -->
+  <header>
+    <div class="logo" onclick="navigate('home')" id="logo-text">WÖRDLE</div>
+    <div class="header-right">
+      <div class="lang-switcher">
+        <button class="lang-btn active" data-lang="de" onclick="switchLanguage('de')">🇩🇪 DE</button>
+        <button class="lang-btn" data-lang="en" onclick="switchLanguage('en')">🇬🇧 EN</button>
+      </div>
+      <div id="header-auth" style="display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="openModal('login')" id="btn-login">Anmelden</button>
+        <button class="btn btn-primary" onclick="openModal('register')" id="btn-register">Registrieren</button>
+      </div>
+      <div id="header-user" style="display:none; align-items:center; gap:10px;">
+        <button class="btn-icon" onclick="navigate('profile')" title="Profil" id="btn-profile">👤</button>
+        <button class="btn-icon" onclick="navigate('leaderboard')" title="Bestenliste">🏆</button>
+        <button class="btn btn-ghost" onclick="logout()" id="btn-logout">Abmelden</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== PAGES ===== -->
+
+  <!-- HOME -->
+  <div id="page-home" class="page active">
+    <div class="hero">
+      <div class="hero-title" id="hero-title">WÖRDLE</div>
+      <div class="hero-sub" id="hero-sub">Das tägliche Wort-Rätsel</div>
+      <div class="hero-demo">
+        <div class="demo-tile correct">H</div>
+        <div class="demo-tile correct">E</div>
+        <div class="demo-tile present">N</div>
+        <div class="demo-tile absent">N</div>
+        <div class="demo-tile present">E</div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn btn-primary" onclick="startGame()" id="btn-play">Spielen →</button>
+        <button class="btn btn-ghost" onclick="navigate('leaderboard')" id="btn-leaderboard-home">🏆 Bestenliste</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="page-game" class="page">
+    <div class="game-header">
+      <h2 id="game-subtitle">WORT DES TAGES</h2>
+      <div class="countdown" id="header-countdown"></div>
+    </div>
+    <div id="played-banner" class="played-banner" style="display:none;">
+      <h3 id="played-title">Heute bereits gespielt!</h3>
+      <p id="played-sub">Nächstes Wort um Mitternacht.</p>
+    </div>
+    <div class="grid-container" id="game-grid"></div>
+    <div class="keyboard" id="game-keyboard"></div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="page-profile" class="page">
+    <div id="profile-logged-out" class="centered-message" style="display:none;">
+      <div class="icon">🔒</div>
+      <p id="msg-login-profile">Melde dich an, um dein Profil zu sehen.</p>
+      <button class="btn btn-primary" onclick="openModal('login')">Anmelden</button>
+    </div>
+    <div class="profile-container" id="profile-content" style="display:none;">
+      <div class="profile-header">
+        <div class="profile-avatar" id="profile-avatar">A</div>
+        <div class="profile-info">
+          <h2 id="profile-username">Username</h2>
+          <p id="profile-email">user@example.com</p>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card streak-card">
+          <span class="value" id="stat-streak">0</span>
+          <span class="label" id="stat-streak-label">Aktuelle Serie 🔥</span>
+        </div>
+        <div class="stat-card streak-card">
+          <span class="value" id="stat-best-streak">0</span>
+          <span class="label" id="stat-best-streak-label">Längste Serie 🏆</span>
+        </div>
+        <div class="stat-card">
+          <span class="value" id="stat-played">0</span>
+          <span class="label" id="stat-played-label">Spiele gespielt</span>
+        </div>
+        <div class="stat-card">
+          <span class="value" id="stat-won">0</span>
+          <span class="label" id="stat-won-label">Gewonnen</span>
+        </div>
+        <div class="stat-card">
+          <span class="value" id="stat-avg">—</span>
+          <span class="label" id="stat-avg-label">Ø Versuche</span>
+        </div>
+        <div class="stat-card">
+          <span class="value" id="stat-winrate">0%</span>
+          <span class="label" id="stat-winrate-label">Gewinnrate</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="page-leaderboard" class="page">
+    <div class="leaderboard-container">
+      <div class="section-title" id="lb-section-title">Top 10 Heute</div>
+      <div class="leaderboard-list" id="leaderboard-list">
+        <div class="lb-empty" id="lb-empty">Noch keine Einträge heute.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPRESSUM -->
+  <div id="page-impressum" class="page">
+    <div class="legal-container">
+      <div class="legal-back" onclick="navigate('home')">← <span id="back-home-imp">Zurück</span></div>
+      <div class="legal-card">
+        <h1 class="legal-title" id="imp-title">Impressum</h1>
+        <div class="legal-section">
+          <h3 id="imp-angaben">Angaben gemäß § 5 TMG</h3>
+          <p>Henrik Seebach<br>E-Mail: <a href="mailto:henneswordle@gmail.com">henneswordle@gmail.com</a></p>
+        </div>
+        <div class="legal-section">
+          <h3 id="imp-verantwortlich">Verantwortlich für den Inhalt</h3>
+          <p>Henrik Seebach</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="imp-hinweis-title">Hinweis</h3>
+          <p id="imp-hinweis-text">Dieses Projekt ist ein privates, nicht-kommerzielles Freizeitprojekt. Es wird kein Umsatz generiert und keine kommerzielle Absicht verfolgt.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="imp-haftung-title">Haftungsausschluss</h3>
+          <p id="imp-haftung-text">Die Inhalte dieser Seite wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte kann keine Gewähr übernommen werden.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATENSCHUTZ -->
+  <div id="page-datenschutz" class="page">
+    <div class="legal-container">
+      <div class="legal-back" onclick="navigate('home')">← <span id="back-home-ds">Zurück</span></div>
+      <div class="legal-card">
+        <h1 class="legal-title" id="ds-title">Datenschutzerklärung</h1>
+        <div class="legal-section">
+          <h3 id="ds-verantwortlicher-title">Verantwortlicher</h3>
+          <p id="ds-verantwortlicher-text">Henrik Seebach, erreichbar unter <a href="mailto:henneswordle@gmail.com">henneswordle@gmail.com</a></p>
+        </div>
+        <div class="legal-section">
+          <h3 id="ds-welche-title">Welche Daten wir speichern</h3>
+          <p id="ds-welche-text">Bei der Registrierung werden folgende Daten in unserer Datenbank (Supabase, gehostet in der EU) gespeichert:</p>
+          <ul>
+            <li id="ds-li1">Benutzername</li>
+            <li id="ds-li2">E-Mail-Adresse</li>
+            <li id="ds-li3">Passwort (als SHA-256-Hash, nicht im Klartext)</li>
+            <li id="ds-li4">Spielstatistiken (Anzahl Spiele, Siege, Serien)</li>
+            <li id="ds-li5">Leaderboard-Einträge (Benutzername, Versuche, Zeit)</li>
+          </ul>
+        </div>
+        <div class="legal-section">
+          <h3 id="ds-zweck-title">Zweck der Verarbeitung</h3>
+          <p id="ds-zweck-text">Die Daten werden ausschließlich für den Betrieb des Spiels verwendet — zur Anmeldung, zur Anzeige persönlicher Statistiken und für die tägliche Bestenliste. Es findet keine kommerzielle Nutzung statt.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="ds-hosting-title">Hosting & Datenbank</h3>
+          <p id="ds-hosting-text">Die Webseite wird über Netlify (USA, Standardvertragsklauseln) gehostet. Die Datenbank läuft auf Supabase (Frankfurt, EU). Beide Anbieter verarbeiten Daten gemäß DSGVO.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="ds-speicher-title">Speicherdauer</h3>
+          <p id="ds-speicher-text">Deine Daten werden gespeichert, solange dein Account existiert. Du kannst jederzeit die Löschung deines Accounts und aller damit verbundenen Daten per E-Mail anfordern.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="ds-cookies-title">Cookies & lokale Speicherung</h3>
+          <p id="ds-cookies-text">Wir verwenden keine Tracking-Cookies. Es wird lediglich der lokale Browser-Speicher (localStorage) genutzt, um deine Sitzung und Spracheinstellung zu speichern. Diese Daten verlassen nicht deinen Browser.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="ds-rechte-title">Deine Rechte</h3>
+          <p id="ds-rechte-text">Du hast das Recht auf Auskunft, Berichtigung und Löschung deiner gespeicherten Daten. Kontaktiere uns dafür unter <a href="mailto:henneswordle@gmail.com">henneswordle@gmail.com</a>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KONTAKT -->
+  <div id="page-kontakt" class="page">
+    <div class="legal-container">
+      <div class="legal-back" onclick="navigate('home')">← <span id="back-home-ko">Zurück</span></div>
+      <div class="legal-card">
+        <h1 class="legal-title" id="ko-title">Kontakt</h1>
+        <div class="legal-section">
+          <p id="ko-intro">Du hast Fragen, Feedback oder möchtest deinen Account löschen? Melde dich gerne:</p>
+        </div>
+        <div class="contact-info">
+          <div class="contact-row">
+            <span class="contact-icon">✉️</span>
+            <a href="mailto:henneswordle@gmail.com" id="ko-email">henneswordle@gmail.com</a>
+          </div>
+          <div class="contact-row">
+            <span class="contact-icon">👤</span>
+            <span id="ko-name">Henrik Seebach</span>
+          </div>
+        </div>
+        <div class="legal-section">
+          <p id="ko-response">Ich versuche, innerhalb von 48 Stunden zu antworten.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AGB -->
+  <div id="page-agb" class="page">
+    <div class="legal-container">
+      <div class="legal-back" onclick="navigate('home')">← <span id="back-home-agb">Zurück</span></div>
+      <div class="legal-card">
+        <h1 class="legal-title" id="agb-title">Nutzungsbedingungen</h1>
+        <div class="legal-section">
+          <h3 id="agb-nutzung-title">Nutzung</h3>
+          <p id="agb-nutzung-text">Wördle ist ein kostenloses, privates Freizeitprojekt. Die Nutzung ist kostenlos und freiwillig. Es besteht kein Anspruch auf dauerhafte Verfügbarkeit.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="agb-account-title">Account</h3>
+          <p id="agb-account-text">Pro Person ist ein Account erlaubt. Das Erstellen von Fake-Accounts oder das Manipulieren von Spielergebnissen ist nicht gestattet und kann zur Sperrung führen.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="agb-verhalten-title">Verhalten</h3>
+          <p id="agb-verhalten-text">Bitte wähle einen angemessenen Benutzernamen. Namen die andere beleidigen oder diskriminieren sind nicht erlaubt und werden ohne Vorwarnung gelöscht.</p>
+        </div>
+        <div class="legal-section">
+          <h3 id="agb-haftung-title">Haftung</h3>
+          <p id="agb-haftung-text">Dieses Projekt wird ohne Gewähr betrieben. Für Datenverlust oder Ausfälle wird keine Haftung übernommen.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #app -->
+
+<!-- ===== FOOTER ===== -->
+<footer id="main-footer">
+  <div class="footer-inner">
+    <div class="footer-logo" onclick="navigate('home')" id="footer-logo">WÖRDLE</div>
+    <nav class="footer-nav">
+      <a onclick="navigate('impressum')" id="footer-imp">Impressum</a>
+      <a onclick="navigate('datenschutz')" id="footer-ds">Datenschutz</a>
+      <a onclick="navigate('agb')" id="footer-agb">Nutzungsbedingungen</a>
+      <a onclick="navigate('kontakt')" id="footer-ko">Kontakt</a>
+    </nav>
+    <div class="footer-copy" id="footer-copy">© 2025 Henrik Seebach · Privates Projekt</div>
+  </div>
+</footer>
+
+<!-- ===== MODALS ===== -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-login">
+      <div class="modal-title" id="modal-login-title">ANMELDEN</div>
+      <div class="form-group">
+        <label id="label-username">Benutzername</label>
+        <input type="text" id="input-username" placeholder="Dein Benutzername" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label id="label-password">Passwort</label>
+        <input type="password" id="input-password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <div class="form-error" id="login-error">Falscher Benutzername oder Passwort.</div>
+      <button class="btn btn-primary form-submit" onclick="doLogin()" id="btn-do-login">Anmelden</button>
+      <div class="form-switch">
+        <span id="no-account-text">Noch kein Konto?</span>
+        <a onclick="openModal('register')" id="switch-to-register"> Registrieren</a>
+      </div>
+    </div>
+    <div id="modal-register" style="display:none;">
+      <div class="modal-title" id="modal-register-title">REGISTRIEREN</div>
+      <div class="form-group">
+        <label id="label-reg-username">Benutzername</label>
+        <input type="text" id="input-reg-username" placeholder="Wähle einen Namen" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label id="label-reg-email">E-Mail</label>
+        <input type="email" id="input-reg-email" placeholder="deine@email.de" autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label id="label-reg-password">Passwort</label>
+        <input type="password" id="input-reg-password" placeholder="Mindestens 6 Zeichen" autocomplete="new-password" />
+      </div>
+      <div class="form-error" id="register-error">Dieser Benutzername ist bereits vergeben.</div>
+      <button class="btn btn-primary form-submit" onclick="doRegister()" id="btn-do-register">Konto erstellen</button>
+      <div class="form-switch">
+        <span id="has-account-text">Bereits ein Konto?</span>
+        <a onclick="openModal('login')" id="switch-to-login"> Anmelden</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RESULT OVERLAY ===== -->
+<div class="result-overlay" id="result-overlay">
+  <div class="result-card">
+    <button class="result-close-btn" onclick="closeResult()" id="btn-close-result" title="Schließen">✕</button>
+    <span class="result-emoji" id="result-emoji">🎉</span>
+    <div class="result-title" id="result-title">Glückwunsch!</div>
+    <div class="result-word" id="result-word">WORT</div>
+    <div class="result-stats">
+      <div class="result-stat">
+        <span class="result-stat-num" id="res-attempts">3</span>
+        <span class="result-stat-label" id="res-attempts-label">Versuche</span>
+      </div>
+      <div class="result-stat">
+        <span class="result-stat-num" id="res-streak">5</span>
+        <span class="result-stat-label" id="res-streak-label">Serie 🔥</span>
+      </div>
+      <div class="result-stat">
+        <span class="result-stat-num" id="res-time">1:24</span>
+        <span class="result-stat-label" id="res-time-label">Zeit</span>
+      </div>
+    </div>
+    <div class="result-countdown" id="result-countdown-text">
+      Nächstes Wort in <span id="result-timer">00:00:00</span>
+    </div>
+    <div class="result-actions">
+      <button class="btn btn-primary" onclick="closeResult(); navigate('leaderboard');" id="btn-to-lb">🏆 Bestenliste</button>
+      <button class="btn btn-ghost" onclick="shareResult()" id="btn-share">Teilen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast-container" id="toast-container"></div>
+
+<script src="wordlists.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
