@@ -487,6 +487,7 @@ function submitGuess() {
   const won = result.every(r => r === 'correct');
 
   revealRow(rowIdx, guess, result, async () => {
+    console.log('callback fired, gameId match:', state.gameId === capturedGameId);
     // Ignore callback if user switched game (language/navigate) during animation
     if (state.gameId !== capturedGameId) return;
 
@@ -562,22 +563,28 @@ async function updateStats(won) {
   try {
     const existing = await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`);
     const s = existing && existing.length > 0 ? existing[0] : null;
+
+    // ✅ FIX: Verhindere doppeltes Zählen wenn heute schon gespielt wurde
+    if (s && s.last_played_date === today) return;
+
     let streak = s ? (s.streak || 0) : 0, bestStreak = s ? (s.best_streak || 0) : 0;
     let played = (s ? s.played : 0) + 1, wonCount = s ? s.won : 0, totalAttempts = s ? s.total_attempts : 0;
     if (won) {
-      wonCount++; totalAttempts += state.currentRow;
+      wonCount++; totalAttempts += state.guesses.length; // ✅ FIX: guesses.length statt currentRow
       const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-      if (s && s.last_played_date === yesterday.toDateString()) streak++;
-      else if (s && s.last_played_date === today) {}
+if (s && s.last_played_date === yesterday.toDateString()) streak++;
       else streak = 1;
       bestStreak = Math.max(bestStreak, streak);
     } else { streak = 0; }
-    const statsData = { user_id: userId, username: state.currentUser.username, lang, played, won: wonCount, total_attempts: totalAttempts, streak, best_streak: bestStreak, last_played_date: won ? today : (s ? s.last_played_date : null) };
+
+    // ✅ FIX: last_played_date immer auf heute setzen (auch bei Niederlage)
+    const statsData = { user_id: userId, lang, played, won: wonCount, total_attempts: totalAttempts, streak, best_streak: bestStreak, last_played_date: today };
     if (s) await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`, { method: 'PATCH', body: JSON.stringify(statsData), prefer: 'return=minimal' });
     else await sbFetch('stats', { method: 'POST', body: JSON.stringify(statsData), prefer: 'return=minimal' });
+
     if (won) {
       const lbEx = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.${lang}&day_key=eq.${state.todayKey}`);
-      if (!lbEx || lbEx.length === 0) await sbFetch('leaderboard', { method: 'POST', body: JSON.stringify({ user_id: userId, username: state.currentUser.username, lang, day_key: state.todayKey, attempts: state.currentRow, time_seconds: elapsedSec }), prefer: 'return=minimal' });
+      if (!lbEx || lbEx.length === 0) await sbFetch('leaderboard', { method: 'POST', body: JSON.stringify({ user_id: userId, username: state.currentUser.username, lang, day_key: state.todayKey, attempts: state.guesses.length, time_seconds: elapsedSec }), prefer: 'return=minimal' });
     }
   } catch (e) { console.error('Stats error:', e); }
 }
@@ -654,6 +661,7 @@ async function setupProfilePage() {
 }
 
 async function setupLeaderboardPage() {
+  lbState.tab = 'today'; // ✅ immer auf "Heute" zurücksetzen beim Öffnen
   renderLeaderboard();
 }
 
