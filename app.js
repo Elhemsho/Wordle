@@ -582,10 +582,15 @@ if (s && s.last_played_date === yesterday.toDateString()) streak++;
     if (s) await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`, { method: 'PATCH', body: JSON.stringify(statsData), prefer: 'return=minimal' });
     else await sbFetch('stats', { method: 'POST', body: JSON.stringify(statsData), prefer: 'return=minimal' });
 
-    if (won) {
-      const lbEx = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.${lang}&day_key=eq.${state.todayKey}`);
-      if (!lbEx || lbEx.length === 0) await sbFetch('leaderboard', { method: 'POST', body: JSON.stringify({ user_id: userId, username: state.currentUser.username, lang, day_key: state.todayKey, attempts: state.guesses.length, time_seconds: elapsedSec }), prefer: 'return=minimal' });
-    }
+    const lbEx = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.${lang}&day_key=eq.${state.todayKey}`);
+if (!lbEx || lbEx.length === 0) {
+  await sbFetch('leaderboard', { method: 'POST', body: JSON.stringify({
+    user_id: userId, username: state.currentUser.username, lang,
+    day_key: state.todayKey,
+    attempts: won ? state.guesses.length : 7,
+    time_seconds: elapsedSec
+  }), prefer: 'return=minimal' });
+}
   } catch (e) { console.error('Stats error:', e); }
 }
 
@@ -689,7 +694,7 @@ function renderSortPills() {
   if (!row) return;
   const pills = lbState.tab === 'today'
     ? [{ key: 'attempts', label: de ? 'Versuche' : 'Attempts' }, { key: 'time', label: de ? 'Zeit' : 'Time' }]
-    : [{ key: 'avg', label: de ? 'Ø Versuche' : 'Avg. Attempts' }, { key: 'streak', label: de ? 'Aktuelle Serie' : 'Current Streak' }, { key: 'best', label: de ? 'Längste Serie' : 'Best Streak' }];
+    : [{ key: 'avg', label: de ? 'Ø Versuche' : 'Avg. Attempts' }, { key: 'winrate', label: de ? 'Win Rate' : 'Win Rate' }, { key: 'streak', label: de ? 'Aktuelle Serie' : 'Current Streak' }, { key: 'best', label: de ? 'Längste Serie' : 'Best Streak' }];
   const current = lbState.tab === 'today' ? lbState.sortToday : lbState.sortAll;
   row.innerHTML = pills.map(p =>
     `<button class="lb-pill${p.key === current ? ' active' : ''}" onclick="lbSetSort('${p.key}')">${p.label}</button>`
@@ -720,9 +725,10 @@ async function fetchAndRenderList() {
       list.innerHTML = entries.map((e, i) => {
         const isMe = state.currentUser && e.user_id === state.currentUser.id;
         const rank = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;
+        const attemptsDisplay = e.attempts === 7 ? '✕' : `${e.attempts}/${DATA.config.maxAttempts}`;
         const hi = lbState.sortToday === 'time'
-          ? `<div class="lb-stat-hi">${formatTime(e.time_seconds)}</div><div class="lb-stat-lo">${e.attempts}/${DATA.config.maxAttempts}</div>`
-          : `<div class="lb-stat-hi">${e.attempts}/${DATA.config.maxAttempts}</div><div class="lb-stat-lo">${formatTime(e.time_seconds)}</div>`;
+          ? `<div class="lb-stat-hi">${formatTime(e.time_seconds)}</div><div class="lb-stat-lo">${attemptsDisplay}</div>`
+          : `<div class="lb-stat-hi">${attemptsDisplay}</div><div class="lb-stat-lo">${formatTime(e.time_seconds)}</div>`;
         return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
           ${rank}
           <div class="lb-avatar">${e.username[0].toUpperCase()}</div>
@@ -732,7 +738,7 @@ async function fetchAndRenderList() {
       }).join('');
     } else {
       const sort = lbState.sortAll;
-      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : 'best_streak.desc,streak.desc';
+      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'winrate' ? 'won.desc,played.asc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : 'best_streak.desc,streak.desc';
       const rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&order=${order}&limit=10&select=*,users(username)`);
       if (!rows || rows.length === 0) { list.innerHTML = `<div class="lb-empty">${de ? 'Noch keine Daten.' : 'No data yet.'}</div>`; return; }
       list.innerHTML = rows.map((s, i) => {
@@ -740,8 +746,11 @@ async function fetchAndRenderList() {
         const rank = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;
         const name = s.users?.username || s.username || '?';
         const avg = s.won > 0 ? (s.total_attempts / s.won).toFixed(1) : '—';
+        const winrate = s.played > 0 ? Math.round((s.won / s.played) * 100) + '%' : '0%';
         const hi = sort === 'avg'
           ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
+          : sort === 'winrate'
+          ? `<div class="lb-stat-hi">${winrate}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
           : sort === 'streak'
           ? `<div class="lb-stat-hi">🔥 ${s.streak}</div><div class="lb-stat-lo">${de ? 'Beste' : 'Best'}: ${s.best_streak}</div>`
           : `<div class="lb-stat-hi">🏆 ${s.best_streak}</div><div class="lb-stat-lo">${de ? 'Aktuell' : 'Now'}: ${s.streak}</div>`;

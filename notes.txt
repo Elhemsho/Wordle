@@ -1,13 +1,10 @@
 Fixes:
 - emojis raus
 - antatt der zeit bis zum nächsten einen modus wo man immer kann (fun mode geht nicht in die statisikien)
-- bestenliste für insgesamt
-- wenn man es nicht schafft soll versuche bei avg als 10 gelten
-- namen ädnern
+- wenn man es nicht schafft soll versuche bei avg als 6)?
+- namen ädnern (profil bearbeiten / emailadresse)
 - deutsch wörter filtern
-- passwort zurücksetzen
-- daily leaderboard fixen
-- ergebnisse direkt updaten
+- passwort zurücksetzen 
 - wenn man auf alltime statsist nd dann sprache switcht nicht zu heute zurück wechselns
 
 Ideen:
