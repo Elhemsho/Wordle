@@ -242,6 +242,8 @@
     .grid-row { display: flex; gap: 6px; }
     .grid-tile { width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 1.6rem; border-radius: 8px; border: 2px solid var(--surface-border); background: var(--surface); color: var(--text); transition: border-color 0.15s; position: relative; user-select: none; transform-origin: center center; will-change: transform; }
     .grid-tile.filled { border-color: var(--text-muted); animation: tilePop 0.1s ease; }
+    .grid-tile.cursor { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
+.grid-tile.cursor.filled { border-color: var(--primary); }
     @keyframes tilePop { 0% { transform: scale(0.9); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
     .grid-tile.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 4px 20px var(--correct-glow); }
     .grid-tile.present { background: var(--present); border-color: var(--present); color: #fff; box-shadow: 0 4px 20px var(--present-glow); }

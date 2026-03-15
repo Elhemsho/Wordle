@@ -26,7 +26,8 @@ let state = {
   gameOver: false, targetWord: '', todayKey: '', startTime: null,
   keyColors: {}, guesses: [], ui: {},
   gameId: 0,
-  isAnimating: false  // blocks input + language switch during reveal animation
+  isAnimating: false,  // blocks input + language switch during reveal animation
+  cursorCol: 0
 };
 
 async function loadData() {
@@ -368,6 +369,7 @@ function setupGamePage() {
   if (!state.currentUser) {
     state.gameOver = false;
     state.currentGuess = '';
+    state.cursorCol = 0;
     state.currentRow = 0;
     state.keyColors = {};
     state.guesses = [];
@@ -384,6 +386,7 @@ function setupGamePage() {
   state.currentRow = state.guesses.length;  // always derived from guesses — never out of sync
   state.keyColors = savedGame ? savedGame.keyColors : {};
   state.currentGuess = '';
+  state.cursorCol = 0;
   state.startTime = savedGame ? savedGame.startTime : Date.now();
 
   document.getElementById('played-banner').style.display = state.gameOver ? 'block' : 'none';
@@ -401,10 +404,19 @@ function buildGrid() {
     for (let c = 0; c < DATA.config.wordLength; c++) {
       const tile = document.createElement('div');
       tile.className = 'grid-tile'; tile.id = `tile-${r}-${c}`;
+      tile.addEventListener('click', () => handleTileClick(r, c));
       row.appendChild(tile);
     }
     grid.appendChild(row);
   }
+}
+
+function handleTileClick(row, col) {
+  if (state.gameOver || state.isAnimating) return;
+  if (!state.currentUser) return;
+  if (row !== state.currentRow) return; // nur aktive Zeile
+  state.cursorCol = col;
+  updateCurrentRow();
 }
 
 function buildKeyboard() {
@@ -441,16 +453,35 @@ function restoreGuesses() {
 
 function handleKey(key) {
   if (state.gameOver) return;
-  if (state.isAnimating) return;  // block all input during reveal
+  if (state.isAnimating) return;
   if (!state.currentUser) { showToast(state.lang === 'de' ? 'Bitte anmelden!' : 'Please login!', 'error'); return; }
+
+  if (key === 'ArrowLeft') {
+    state.cursorCol = Math.max(0, state.cursorCol - 1);
+    updateCurrentRow(); return;
+  }
+  if (key === 'ArrowRight') {
+    state.cursorCol = Math.min(DATA.config.wordLength - 1, state.cursorCol + 1);
+    updateCurrentRow(); return;
+  }
+
   if (key === '⌫' || key === 'Backspace') {
-    if (state.currentGuess.length > 0) { state.currentGuess = state.currentGuess.slice(0, -1); updateCurrentRow(); }
-    return;
+    if (state.currentGuess.length > 0) {
+      state.currentGuess = state.currentGuess.slice(0, -1);
+      state.cursorCol = state.currentGuess.length; // Cursor folgt dem Ende
+    }
+    updateCurrentRow(); return;
   }
+
   if (key === 'ENTER' || key === 'Enter') { submitGuess(); return; }
-  if (/^[A-ZÄÖÜa-zäöü]$/.test(key) && state.currentGuess.length < DATA.config.wordLength) {
-    state.currentGuess += key.toUpperCase(); updateCurrentRow();
-  }
+
+  if (/^[A-ZÄÖÜa-zäöü]$/.test(key)) {
+  const arr = state.currentGuess.padEnd(DATA.config.wordLength, ' ').split('');
+  arr[state.cursorCol] = key.toUpperCase();
+  state.currentGuess = arr.join('').trimEnd();
+  if (state.cursorCol < DATA.config.wordLength - 1) state.cursorCol++;
+  updateCurrentRow();
+}
 }
 
 function updateCurrentRow() {
@@ -459,7 +490,10 @@ function updateCurrentRow() {
     if (tile) {
       const char = state.currentGuess[c] || '';
       tile.textContent = char;
-      tile.className = 'grid-tile' + (char ? ' filled' : '');
+      let cls = 'grid-tile';
+      if (char) cls += ' filled';
+      if (c === state.cursorCol && !state.gameOver && !state.isAnimating) cls += ' cursor';
+      tile.className = cls;
     }
   }
 }
@@ -473,7 +507,9 @@ function evaluateGuess(guess, target) {
 }
 
 function submitGuess() {
-  if (state.currentGuess.length < DATA.config.wordLength) { shakeRow(state.currentRow); showToast(state.ui.wordTooShort, 'error'); return; }
+  const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
+const filledCount = guessArr.filter(c => c.trim()).length;
+if (filledCount < DATA.config.wordLength) { shakeRow(state.currentRow); showToast(state.ui.wordTooShort, 'error'); return; }
 
   if (wordlistsReady) {
     const validSet = state.lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
@@ -484,7 +520,7 @@ function submitGuess() {
     }
   }
 
-  const guess = state.currentGuess;
+  const guess = (state.currentGuess || '').padEnd(DATA.config.wordLength, ' ').substring(0, DATA.config.wordLength).toUpperCase();
   const result = evaluateGuess(guess, state.targetWord);
   const rowIdx = state.currentRow;
   const capturedGameId = state.gameId;  // snapshot — callback will check this
@@ -493,6 +529,7 @@ function submitGuess() {
   // Update all state IMMEDIATELY before the animation starts.
   // This way a language switch during animation cannot corrupt guesses/currentRow.
   state.currentGuess = '';
+  state.cursorCol = 0;
   state.currentRow++;
   state.guesses.push(guess);
   updateCurrentRow(); // clear the now-next row
@@ -513,6 +550,10 @@ function submitGuess() {
       setTimeout(() => showResult(won), 500);
     } else {
       saveCurrentGame();
+  state.cursorCol = 0;
+console.log('cursorCol set to 0, currentRow:', state.currentRow, 'isAnimating:', state.isAnimating, 'gameOver:', state.gameOver);
+updateCurrentRow();
+console.log('tile-' + state.currentRow + '-0 class:', document.getElementById('tile-' + state.currentRow + '-0')?.className);
     }
   });
 }
@@ -819,6 +860,8 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Backspace') { handleKey('Backspace'); return; }
   if (e.key === 'Enter') { handleKey('Enter'); return; }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); handleKey('ArrowLeft'); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); handleKey('ArrowRight'); return; }
   if (/^[a-zA-ZäöüÄÖÜ]$/.test(e.key)) handleKey(e.key.toUpperCase());
 });
 document.getElementById('input-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
