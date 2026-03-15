@@ -247,7 +247,7 @@
     @keyframes tilePop { 0% { transform: scale(0.9); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
     .grid-tile.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 4px 20px var(--correct-glow); }
     .grid-tile.present { background: var(--present); border-color: var(--present); color: #fff; box-shadow: 0 4px 20px var(--present-glow); }
-    .grid-tile.absent { background: var(--absent); border-color: var(--absent-border); color: var(--text-muted); }
+    .grid-tile.absent { background: var(--absent); border-color: var(--absent-border); color: #9A8A80; }
     /* flip animation handled via inline JS transitions */
     .grid-tile.shake { animation: tileShake 0.4s ease; }
     @keyframes tileShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
@@ -261,7 +261,7 @@
     .key.wide { min-width: 62px; font-size: 0.75rem; }
     .key.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 2px 10px var(--correct-glow); }
     .key.present { background: var(--present); border-color: var(--present); color: #fff; box-shadow: 0 2px 10px var(--present-glow); }
-    .key.absent { background: #1a1715; border-color: #222; color: #45403d; }
+    .key.absent { background: #1a1715; border-color: #333; color: #5f4f48; }
 
     .result-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); z-index: 150; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.4s; }
     .result-overlay.open { opacity: 1; pointer-events: all; }

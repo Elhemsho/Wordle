@@ -4,7 +4,6 @@ Fixes:
 - profil bearbeiten - namen ädnern / emailadresse ändern / - white mode
 - registrieren - passwort zurücksetzen / email bestätigen
 - löde?
-- höherer kontrast
 - wenn nicht geschafft auch unten immer anzeigen was wort war nicht nur in pop up
 
 Ideen:

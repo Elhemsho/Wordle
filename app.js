@@ -148,7 +148,7 @@ function applyLanguage(lang) {
   setEl('played-title', state.ui.alreadyPlayed);
   setElHTML('result-countdown-text', state.ui.newWordIn + ' <span id="result-timer">00:00:00</span>');
   setEl('game-subtitle', lang === 'de' ? 'WORT DES TAGES' : 'WORD OF THE DAY');
-  setEl('played-sub', state.ui.newWordIn + ' ...');
+  setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + (state.targetWord || ''));
 
   setEl('footer-logo', state.ui.title);
   setEl('footer-imp', lang === 'de' ? 'Impressum' : 'Legal Notice');
@@ -361,6 +361,10 @@ function setupGamePage() {
   state.todayKey = getTodayKey(state.lang);
   state.targetWord = getDailyWord(state.lang);
 
+  if (state.gameOver) {
+  setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
+}
+
   // Always add today's word to valid sets
   if (wordlistsReady) {
     VALID_WORDS_DE.add(state.targetWord);
@@ -377,7 +381,8 @@ function setupGamePage() {
     state.startTime = Date.now();
     buildGrid();
     buildKeyboard();
-    document.getElementById('played-banner').style.display = 'none';
+    document.getElementById('played-banner').style.display = state.gameOver ? 'block' : 'none';
+setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
     return;
   }
 
