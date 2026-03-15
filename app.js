@@ -630,7 +630,7 @@ async function updateStats(won) {
 if (s && s.last_played_date === yesterday.toDateString()) streak++;
       else streak = 1;
       bestStreak = Math.max(bestStreak, streak);
-    } else { streak = 0; }
+    } else { streak = 0; totalAttempts += 6;}
 
     // ✅ FIX: last_played_date immer auf heute setzen (auch bei Niederlage)
     const statsData = { user_id: userId, lang, played, won: wonCount, total_attempts: totalAttempts, streak, best_streak: bestStreak, last_played_date: today };
@@ -715,7 +715,7 @@ async function setupProfilePage() {
     document.getElementById('stat-best-streak').textContent = s ? (s.best_streak || 0) : 0;
     document.getElementById('stat-played').textContent = s ? (s.played || 0) : 0;
     document.getElementById('stat-won').textContent = s ? (s.won || 0) : 0;
-    document.getElementById('stat-avg').textContent = s && s.won ? (s.total_attempts / s.won).toFixed(1) : '—';
+    document.getElementById('stat-avg').textContent = s && s.played ? (s.total_attempts / s.played).toFixed(1) : '—';
     document.getElementById('stat-winrate').textContent = s && s.played ? Math.round((s.won / s.played) * 100) + '%' : '0%';
   } catch (e) { console.error('Profile error:', e); }
 }

@@ -1,11 +1,9 @@
 Fixes:
 - emojis raus
 - antatt der zeit bis zum nächsten einen modus wo man immer kann (fun mode geht nicht in die statisikien)
-- wenn man es nicht schafft soll versuche bei avg als 6
 - namen ädnern (profil bearbeiten / emailadresse)
 - passwort zurücksetzen 
-- warum löde nicht drinnen?
-- teilen link erstellen
+- löde?
 - valid und daily wort unteschiedliche liste engelishc duetlich mehr wörter möglich sein (hello, sings)
 
 Ideen:
