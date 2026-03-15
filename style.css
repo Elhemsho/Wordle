@@ -60,7 +60,7 @@
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--primary-dark); border-radius: 3px; }
 
-    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+   #app { position: relative; z-index: 1; height: 100vh; display: flex; flex-direction: column; }
 
     header {
       display: flex;
@@ -148,7 +148,7 @@
     .page { display: none; flex: 1; }
     .page.active { display: flex; flex-direction: column; }
 
-    #page-home { align-items: center; justify-content: center; padding: 60px 24px; }
+    #page-home { align-items: center; justify-content: center; padding: 16px 24px; flex: 1; }
 
     .hero { text-align: center; max-width: 560px; animation: fadeUp 0.6s ease both; }
 
@@ -240,7 +240,7 @@
 
     .grid-container { display: flex; flex-direction: column; gap: 6px; animation: fadeUp 0.5s ease 0.1s both; perspective: 600px; }
     .grid-row { display: flex; gap: 6px; }
-    .grid-tile { width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 1.6rem; border-radius: 8px; border: 2px solid var(--surface-border); background: var(--surface); color: var(--text); transition: border-color 0.15s; position: relative; user-select: none; transform-origin: center center; will-change: transform; }
+    .grid-tile { width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 1.6rem; border-radius: 8px; border: 2px solid var(--surface-border); background: var(--surface); color: var(--text); transition: border-color 0.15s; position: relative; user-select: none; transform-origin: center center; will-change: transform; touch-action: manipulation; }
     .grid-tile.filled { border-color: var(--text-muted); animation: tilePop 0.1s ease; }
     .grid-tile.cursor { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
 .grid-tile.cursor.filled { border-color: var(--primary); }
@@ -256,7 +256,7 @@
 
     .keyboard { display: flex; flex-direction: column; gap: 6px; animation: fadeUp 0.5s ease 0.2s both; }
     .keyboard-row { display: flex; gap: 5px; justify-content: center; }
-    .key { min-width: 40px; height: 54px; padding: 0 8px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; border-radius: 6px; cursor: pointer; background: var(--surface-light); color: var(--text); border: 1px solid var(--surface-border); transition: all 0.15s; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .key { min-width: 40px; height: 54px; padding: 0 8px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; border-radius: 6px; cursor: pointer; background: var(--surface-light); color: var(--text); border: 1px solid var(--surface-border); transition: all 0.15s; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .key:active { transform: scale(0.93); }
     .key.wide { min-width: 62px; font-size: 0.75rem; }
     .key.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 2px 10px var(--correct-glow); }
@@ -319,14 +319,47 @@
 
     #result-timer { font-family: var(--font-mono); font-size: 1.2rem; color: var(--primary); }
 
-    @media (max-width: 500px) {
-      header { padding: 12px 16px; }
-      .logo { font-size: 1.2rem; }
-      .grid-tile { width: 52px; height: 52px; font-size: 1.3rem; }
-      .key { min-width: 34px; height: 48px; font-size: 0.78rem; }
-      .key.wide { min-width: 52px; }
-      .profile-header { flex-direction: column; text-align: center; }
-    }
+    @media (max-width: 600px) {
+  /* Header */
+  header { padding: 10px 12px; gap: 8px; }
+  .logo { font-size: 1.1rem; letter-spacing: 0.15em; }
+  .header-right { gap: 6px; }
+  #header-auth { gap: 6px; }
+  .btn { padding: 7px 12px; font-size: 0.78rem; }
+  .btn-icon { padding: 7px; }
+  .lang-btn { padding: 4px 8px; font-size: 0.72rem; }
+  #header-countdown { font-size: 0.75rem; }
+
+  /* Game */
+  #page-game { padding: 16px 8px; gap: 16px; }
+  .grid-tile { width: 52px; height: 52px; font-size: 1.3rem; }
+  .key { min-width: 32px; height: 46px; font-size: 0.75rem; padding: 0 4px; }
+  .key.wide { min-width: 48px; font-size: 0.68rem; }
+  .keyboard-row { gap: 4px; }
+  .keyboard { gap: 5px; }
+
+  /* Profile */
+  .profile-header { flex-direction: column; text-align: center; padding: 24px 16px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-card { padding: 16px 12px; }
+  .stat-card .value { font-size: 1.6rem; }
+
+  /* Leaderboard */
+  #page-leaderboard { padding: 24px 12px; }
+  .lb-entry { padding: 12px 14px; gap: 10px; }
+  .lb-name { font-size: 0.85rem; }
+
+  /* Result card */
+  .result-card { padding: 28px 20px; }
+  .result-word { font-size: 1.6rem; }
+}
+
+@media (max-width: 380px) {
+  .grid-tile { width: 46px; height: 46px; font-size: 1.15rem; }
+  .key { min-width: 28px; height: 42px; font-size: 0.7rem; }
+  .key.wide { min-width: 42px; }
+  .logo { font-size: 1rem; }
+}
 
     .centered-message { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; color: var(--text-muted); text-align: center; padding: 40px; animation: fadeUp 0.5s ease; }
     .centered-message .icon { font-size: 3rem; }
