@@ -10,7 +10,6 @@ Fixes:
 
 Ideen:
 - freunde adden
-- responsive design
 - einstellungen (dark mode / musik?)
 - google
 - 404 seite

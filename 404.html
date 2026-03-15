@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>404 – WÖRDLE</title>
+  <link rel="icon" type="image/png" href="assets/images/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #E8580A;
+      --primary-light: #F47C3C;
+      --primary-dark: #C44A08;
+      --primary-glow: rgba(232, 88, 10, 0.35);
+      --bg: #0F0D0B;
+      --surface: #1A1612;
+      --surface-light: #251E18;
+      --surface-border: #2E2420;
+      --text: #F5EDE6;
+      --text-muted: #7A6A60;
+      --correct: #4CAF50;
+      --correct-glow: rgba(76, 175, 80, 0.3);
+      --present: #E8A30A;
+      --present-glow: rgba(232, 163, 10, 0.3);
+      --absent: #2A2320;
+      --absent-border: #3A3330;
+      --font-display: 'Syne', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-display);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(232,88,10,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--surface-border);
+      background: rgba(15,13,11,0.8);
+      backdrop-filter: blur(20px);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-family: var(--font-mono);
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      color: var(--primary);
+      text-shadow: 0 0 30px var(--primary-glow);
+      cursor: pointer;
+      text-decoration: none;
+      transition: text-shadow 0.3s;
+    }
+    .logo:hover { text-shadow: 0 0 50px var(--primary-glow), 0 0 80px var(--primary-glow); }
+
+    .header-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--surface-border);
+      background: transparent;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .header-btn:hover { color: var(--text); border-color: var(--primary); background: rgba(232,88,10,0.06); }
+
+    main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 24px;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    .tiles {
+      display: flex;
+      gap: 10px;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .tile {
+      width: 68px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.8rem;
+      border-radius: 10px;
+      border: 2px solid var(--surface-border);
+      background: var(--surface);
+      color: var(--text);
+      animation: tileReveal 0.5s ease both;
+    }
+
+    .tile:nth-child(1) { animation-delay: 0.1s; }
+    .tile:nth-child(2) { animation-delay: 0.25s; }
+    .tile:nth-child(3) { animation-delay: 0.4s; }
+
+    .tile.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 4px 24px var(--correct-glow); }
+    .tile.present { background: var(--present); border-color: var(--present); color: #fff; box-shadow: 0 4px 24px var(--present-glow); }
+    .tile.absent  { background: var(--absent); border-color: var(--absent-border); color: var(--text-muted); }
+
+    @keyframes tileReveal {
+      0%   { transform: scaleY(0); opacity: 0; }
+      60%  { transform: scaleY(1.08); opacity: 1; }
+      100% { transform: scaleY(1); opacity: 1; }
+    }
+
+    .content {
+      text-align: center;
+      max-width: 480px;
+      animation: fadeUp 0.5s ease 0.35s both;
+    }
+
+    .error-code {
+      font-family: var(--font-mono);
+      font-size: clamp(4.5rem, 18vw, 8rem);
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.1em;
+      line-height: 1;
+      text-shadow: 0 0 60px var(--primary-glow), 0 0 120px rgba(232,88,10,0.15);
+      margin-bottom: 12px;
+    }
+
+    .error-title {
+      font-family: var(--font-mono);
+      font-size: clamp(0.9rem, 3vw, 1.2rem);
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .error-sub {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--primary-glow);
+      text-decoration: none;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .btn-primary:hover { background: var(--primary-light); box-shadow: 0 4px 24px rgba(232,88,10,0.55); transform: translateY(-1px); }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--surface-border);
+      text-decoration: none;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--primary); background: rgba(232,88,10,0.06); }
+
+    footer {
+      position: relative;
+      z-index: 10;
+      border-top: 1px solid var(--surface-border);
+      background: var(--surface);
+      padding: 20px 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .footer-copy {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      opacity: 0.6;
+      letter-spacing: 0.02em;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 500px) {
+      header { padding: 10px 14px; }
+      .logo { font-size: 1.1rem; }
+      .tile { width: 54px; height: 54px; font-size: 1.4rem; }
+      main { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="logo" href="/">WÖRDLE</a>
+    <a class="header-btn" href="/">← Zurück</a>
+  </header>
+
+  <main>
+    <div class="tiles">
+      <div class="tile absent">4</div>
+      <div class="tile present">0</div>
+      <div class="tile absent">4</div>
+    </div>
+
+    <div class="content">
+      <div class="error-code">404</div>
+      <div class="error-title">Seite nicht gefunden</div>
+      <p class="error-sub">
+        Dieses Wort existiert nicht in unserem Wörterbuch.<br>
+        Die gesuchte Seite wurde verschoben, gelöscht<br>oder hat nie existiert.
+      </p>
+      <div class="actions">
+        <a class="btn-primary" href="/">🏠 Zur Startseite</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p class="footer-copy">© 2026 Henrik Seebach · Alle Rechte vorbehalten.</p>
+  </footer>
+
+</body>
+</html>
