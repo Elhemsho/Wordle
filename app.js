@@ -60,6 +60,20 @@ function getTodayKey(lang) {
   const d = new Date();
   return `${lang}_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
 }
+
+function getDailyWord(lang) {
+  const words = DATA.languages[lang].words;
+  const today = new Date();
+  // Seed aus Datum: Jahr * 10000 + Monat * 100 + Tag
+  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  // Einfacher aber guter Hash
+  let hash = seed;
+  hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
+  hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
+  hash = (hash >> 16) ^ hash;
+  return words[Math.abs(hash) % words.length];
+}
+/*
 function getDailyWord(lang) {
   const words = DATA.languages[lang].words;
   // Festes Startdatum: 1. Januar 2025 = Tag 0
@@ -72,7 +86,7 @@ function getDailyWord(lang) {
   const dayIndex = Math.floor((today - epoch) / 86400000);
   return words[dayIndex % words.length];
 }
-
+*/
 function init() {
   state.lang = localStorage.getItem('wordle_lang') || DATA.config.defaultLanguage;
 state.currentUser = getSessionUser();
@@ -666,7 +680,6 @@ async function setupProfilePage() {
 }
 
 async function setupLeaderboardPage() {
-  lbState.tab = 'today'; // ✅ immer auf "Heute" zurücksetzen beim Öffnen
   renderLeaderboard();
 }
 
@@ -738,9 +751,24 @@ async function fetchAndRenderList() {
       }).join('');
     } else {
       const sort = lbState.sortAll;
-      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'winrate' ? 'won.desc,played.asc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : 'best_streak.desc,streak.desc';
-      const rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&order=${order}&limit=10&select=*,users(username)`);
+      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : sort === 'best' ? 'best_streak.desc,streak.desc' : 'won.desc,played.asc';
+      let rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&order=${order}&limit=10&select=*,users(username)`);
       if (!rows || rows.length === 0) { list.innerHTML = `<div class="lb-empty">${de ? 'Noch keine Daten.' : 'No data yet.'}</div>`; return; }
+      if (sort === 'winrate') {
+        rows = rows.sort((a, b) => {
+          const rateA = a.played > 0 ? a.won / a.played : 0;
+          const rateB = b.played > 0 ? b.won / b.played : 0;
+          if (rateB !== rateA) return rateB - rateA;
+          return b.won - a.won;
+        });
+      } else if (sort === 'avg') {
+        rows = rows.sort((a, b) => {
+          const avgA = a.won > 0 ? a.total_attempts / a.won : 99;
+          const avgB = b.won > 0 ? b.total_attempts / b.won : 99;
+          if (avgA !== avgB) return avgA - avgB; // niedriger Schnitt zuerst
+          return b.won - a.won; // bei gleichem Schnitt: mehr Siege zuerst
+        });
+      }
       list.innerHTML = rows.map((s, i) => {
         const isMe = state.currentUser && s.user_id === state.currentUser.id;
         const rank = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;

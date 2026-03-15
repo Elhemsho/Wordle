@@ -6,6 +6,8 @@ Fixes:
 - deutsch wörter filtern
 - passwort zurücksetzen 
 - wenn man auf alltime statsist nd dann sprache switcht nicht zu heute zurück wechselns
+- warum löde nicht drinnen?
+- teilen link erstellen
 
 Ideen:
 - freunde adden
@@ -14,3 +16,7 @@ Ideen:
 - google
 - 404 seite
 - dordle mdous...
+
+ich will dass es möglich ist dass man auswählen kann in welhces feld man was reinschriebt. nicht nur immer das erste freie. sondern man soll auch das erste frei lassen können und direkt ins zweite schreiben. außerdem soll man mit den pfeiltasten zwischen den fledern rumspringen können. das muss natürlich auch alles designt sein.
+
+ich will nun dass es für den handynutzer auch ein shcönes experience ist. dafür soll die breite also alles so angepasst sein, dass es fürs handy oder andere bildshcirme schön ist gerade ist es verschoben und der header inhalt passt nicht richtig rein bitte überlege was und passe das an fürs handy. für pc ist gut so. außerdem soll man wenn man deoppelklick macht nicht ranzoomen. oft hat man nömlihd das problem, dass wenn man mehrfach auf den zurückbutton drpckt man reingezoomt wird da es als doppelklick gewertet wrid.
