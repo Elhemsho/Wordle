@@ -63,11 +63,12 @@ function getTodayKey(lang) {
 }
 
 function getDailyWord(lang) {
-  const words = DATA.languages[lang].words;
+  const words = lang === 'de'
+    ? (DAILY_WORDS_DE.length > 0 ? DAILY_WORDS_DE : DATA.languages[lang].words)
+    : (DAILY_WORDS_EN.length > 0 ? DAILY_WORDS_EN : DATA.languages[lang].words);
+
   const today = new Date();
-  // Seed aus Datum: Jahr * 10000 + Monat * 100 + Tag
   const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-  // Einfacher aber guter Hash
   let hash = seed;
   hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
   hash = ((hash >> 16) ^ hash) * 0x45d9f3b;

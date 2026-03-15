@@ -1,14 +1,13 @@
 Fixes:
 - emojis raus
 - antatt der zeit bis zum nächsten einen modus wo man immer kann (fun mode geht nicht in die statisikien)
-- namen ädnern (profil bearbeiten / emailadresse)
-- passwort zurücksetzen 
+- profil bearbeiten - namen ädnern / emailadresse ändern / - white mode
+- registrieren - passwort zurücksetzen / email bestätigen
 - löde?
-- valid und daily wort unteschiedliche liste engelishc duetlich mehr wörter möglich sein (hello, sings)
+- höherer kontrast
+- wenn nicht geschafft auch unten immer anzeigen was wort war nicht nur in pop up
 
 Ideen:
-- freunde adden
-- einstellungen (dark mode / musik?)
+- freunde adden -> team streak
 - google
-- 404 seite
 - dordle mdous...
