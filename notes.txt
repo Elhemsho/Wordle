@@ -1,12 +1,10 @@
 Fixes:
 - emojis raus
-- antatt der zeit bis zum nächsten einen modus wo man immer kann (fun mode geht nicht in die statisikien)
 - profil bearbeiten - namen ädnern / emailadresse ändern / - white mode
 - registrieren - passwort zurücksetzen / email bestätigen
 - löde?
-- wenn nicht geschafft auch unten immer anzeigen was wort war nicht nur in pop up
 
 Ideen:
+- fun mode geht nicht in die statisikien
 - freunde adden -> team streak
-- google
 - dordle mdous...
