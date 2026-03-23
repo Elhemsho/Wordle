@@ -202,6 +202,8 @@ function applyLanguage(lang) {
     setEl('agb-verhalten-text', 'Bitte wähle einen angemessenen Benutzernamen. Namen die andere beleidigen oder diskriminieren sind nicht erlaubt und werden ohne Vorwarnung gelöscht.');
     setEl('agb-haftung-title', 'Haftung');
     setEl('agb-haftung-text', 'Dieses Projekt wird ohne Gewähr betrieben. Für Datenverlust oder Ausfälle wird keine Haftung übernommen.');
+    setEl('ds-analyse-title', 'Reichweitenanalyse (Umami)');
+    setEl('ds-analyse-text', 'Wir nutzen Umami, um die Nutzung unserer Website statistisch auszuwerten. Umami verwendet keine Cookies und speichert keine personenbezogenen Daten. Die Daten werden anonymisiert in der EU verarbeitet.');
   } else {
     setEl('imp-title', 'Legal Notice');
     setEl('imp-angaben', 'Information according to § 5 TMG');
@@ -242,6 +244,8 @@ function applyLanguage(lang) {
     setEl('agb-verhalten-text', 'Please choose an appropriate username. Names that are offensive or discriminatory are not allowed and will be deleted without warning.');
     setEl('agb-haftung-title', 'Liability');
     setEl('agb-haftung-text', 'This project is operated without warranty. No liability is assumed for data loss or outages.');
+    setEl('ds-analyse-title', 'Traffic Analysis (Umami)');
+    setEl('ds-analyse-text', 'We use Umami to statistically evaluate the use of our website. Umami does not use cookies and does not store personal data. Data is processed anonymously within the EU.');
   }
 }
 
