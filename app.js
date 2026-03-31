@@ -36,7 +36,7 @@ async function loadData() {
     DATA = await resp.json();
   } catch (e) {
     DATA = {
-      config: { wordLength: 5, maxAttempts: 6, defaultLanguage: 'de' },
+      config: { wordLength: 5, maxAttempts: 6, defaultLanguage: 'de', minGamesForLeaderboard: 3 },
       languages: {
         de: { name: 'Deutsch', flag: '🇩🇪', words: ['APFEL','BLUME','KRAFT','RAUCH','STARK','TISCH','VOGEL','WELLE','ADLER','BRAND','EISEN','FISCH','GABEL','JUBEL','KISTE','LICHT','REGEN','SONNE','TIGER','WOLKE','ZUNGE','ABEND','MAUER','NACHT','PFEIL'] },
         en: { name: 'English', flag: '🇬🇧', words: ['FLAME','BLAST','CRISP','DRAPE','ELDER','FAINT','GROAN','HASTE','IVORY','JOUST','KNEEL','LANKY','MIRTH','NOBLE','OLIVE','PERCH','QUILL','RAVEN','SLOTH','WALTZ','XENON','ZESTY','ABIDE','BLOWN','CLEFT'] }
@@ -745,6 +745,11 @@ function renderLeaderboard() {
       <button class="lb-tab${lbState.tab === 'today' ? ' active' : ''}" onclick="lbSetTab('today')">${de ? '📅 Heute' : '📅 Today'}</button>
       <button class="lb-tab${lbState.tab === 'all' ? ' active' : ''}" onclick="lbSetTab('all')">${de ? '🏆 Gesamt' : '🏆 All-time'}</button>
     </div>
+
+${lbState.tab === 'all' ? `<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-bottom: 8px;">
+        ${de ? 'Mindestens 3 Spiele erforderlich' : 'Min. 3 games required'}
+    </div>` : ''}
+
     <div class="lb-sort-row" id="lb-sort-row"></div>
     <div class="leaderboard-list" id="leaderboard-list"><div class="lb-empty">⏳</div></div>
   `;
@@ -803,8 +808,12 @@ async function fetchAndRenderList() {
     } else {
       const sort = lbState.sortAll;
       const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : sort === 'best' ? 'best_streak.desc,streak.desc' : 'won.desc,played.asc';
-      let rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&order=${order}&limit=10&select=*,users(username)`);
-      if (!rows || rows.length === 0) { list.innerHTML = `<div class="lb-empty">${de ? 'Noch keine Daten.' : 'No data yet.'}</div>`; return; }
+      
+      let rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&played=gte.3&order=${order}&limit=10&select=*,users(username)`);
+      if (!rows || rows.length === 0) { 
+        list.innerHTML = `<div class="lb-empty">${de ? 'Noch nicht genug Daten (min. 3 Spiele nötig).' : 'Not enough data yet (min. 3 games required).'}</div>`; 
+        return; 
+      }
       if (sort === 'winrate') {
         rows = rows.sort((a, b) => {
           const rateA = a.played > 0 ? a.won / a.played : 0;
