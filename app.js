@@ -1,6 +1,17 @@
 const SUPABASE_URL = 'https://nhlkpscafaevbemeqyzc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5obGtwc2NhZmFldmJlbWVxeXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNTY1MTYsImV4cCI6MjA4ODgzMjUxNn0.ywXf2afjo9XN1eMEEZLmb10638VEhu8Dmdo5qF5ctnw';
 
+window.addEventListener('offline', () => {
+  // Zeige ein Overlay an, das alles blockiert
+  document.body.classList.add('is-offline');
+  alert(state.lang === 'de' ? "Du bist offline. Das Spiel wurde pausiert." : "You are offline. Game paused.");
+});
+
+window.addEventListener('online', () => {
+  // Overlay wieder entfernen
+  document.body.classList.remove('is-offline');
+});
+
 async function sbFetch(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
@@ -248,23 +259,29 @@ function applyLanguage(lang) {
     setEl('ds-analyse-text', 'We use Umami to statistically evaluate the use of our website. Umami does not use cookies and does not store personal data. Data is processed anonymously within the EU.');
   }
 }
-
-// ALT
-function switchLanguage(lang) {
-  applyLanguage(lang);
-  setupProfilePage();
-  setupLeaderboardPage();
-  if (document.getElementById('page-game').classList.contains('active')) setupGamePage();
-}
-
-// NEU
-function switchLanguage(lang) {
+async function switchLanguage(lang) {
+  // 1. Verhindern, dass während Animationen gewechselt wird
   if (state.isAnimating) return;
+
+  // 2. Internet-Check: Sprachwechsel braucht Internet, um neue Wörter zu laden
+  if (!navigator.onLine) {
+    showToast(state.lang === 'de' ? 'Sprachwechsel nur mit Internet möglich!' : 'Language switch requires internet!');
+    return;
+  }
+
+  // 3. Sprache anwenden
   applyLanguage(lang);
+
+  // 4. Nur die Seite aktualisieren, die gerade wirklich offen ist
   const activePage = document.querySelector('.page.active');
   if (!activePage) return;
+
   const pageId = activePage.id;
-  if (pageId === 'page-game') setupGamePage();
+  if (pageId === 'page-game') {
+    // Falls wir im Spiel sind, müssen wir die neuen Wortlisten laden
+    await loadData(); 
+    setupGamePage();
+  } 
   else if (pageId === 'page-profile') setupProfilePage();
   else if (pageId === 'page-leaderboard') setupLeaderboardPage();
 }
@@ -516,12 +533,34 @@ function evaluateGuess(guess, target) {
   return result;
 }
 
-function submitGuess() {
+// 1. FIX: Hier muss "async" vor function stehen, damit await funktioniert
+async function submitGuess() {
   
-  const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
-const filledCount = guessArr.filter(c => c.trim()).length;
-if (filledCount < DATA.config.wordLength) { shakeRow(state.currentRow); showToast(state.ui.wordTooShort, 'error'); return; }
+  // 1. Sofort-Check: Haben wir Internet?
+  if (!navigator.onLine) {
+    showToast(state.lang === 'de' ? 'Keine Internetverbindung!' : 'No internet connection!');
+    return; 
+  }
 
+  // 2. Sicherheits-Check: Validierung über den Server
+  try {
+    const { data, error } = await supabase.from('leaderboard').select('id').limit(1);
+    if (error) throw error; 
+  } catch (e) {
+    showToast(state.lang === 'de' ? 'Verbindung zum Server verloren!' : 'Connection to server lost!');
+    return;
+  }
+
+  // Hier prüfen wir die Länge
+  const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
+  const filledCount = guessArr.filter(c => c.trim()).length;
+  if (filledCount < DATA.config.wordLength) { 
+    shakeRow(state.currentRow); 
+    showToast(state.ui.wordTooShort, 'error'); 
+    return; 
+  }
+
+  // Wortlisten Check
   if (wordlistsReady) {
     const validSet = state.lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
     if (!validSet.has(state.currentGuess)) {
@@ -531,26 +570,25 @@ if (filledCount < DATA.config.wordLength) { shakeRow(state.currentRow); showToas
     }
   }
 
+  // 2. FIX: Hier habe ich das zweite "const" bei guess entfernt, 
+  // da wir die Variable oben schon (theoretisch) deklarieren könnten.
+  // Ich habe es hier jetzt final definiert:
   const guess = (state.currentGuess || '').padEnd(DATA.config.wordLength, ' ').substring(0, DATA.config.wordLength).toUpperCase();
+  
   const result = evaluateGuess(guess, state.targetWord);
   const rowIdx = state.currentRow;
-  const capturedGameId = state.gameId;  // snapshot — callback will check this
+  const capturedGameId = state.gameId;
 
-  // ── THE FIX ──────────────────────────────────────────────────────────────
-  // Update all state IMMEDIATELY before the animation starts.
-  // This way a language switch during animation cannot corrupt guesses/currentRow.
+  // State sofort updaten
   state.currentGuess = '';
   state.cursorCol = 0;
   state.currentRow++;
   state.guesses.push(guess);
-  updateCurrentRow(); // clear the now-next row
-  // ─────────────────────────────────────────────────────────────────────────
+  updateCurrentRow(); 
 
   const won = result.every(r => r === 'correct');
 
   revealRow(rowIdx, guess, result, async () => {
-    console.log('callback fired, gameId match:', state.gameId === capturedGameId);
-    // Ignore callback if user switched game (language/navigate) during animation
     if (state.gameId !== capturedGameId) return;
 
     if (won || state.currentRow >= DATA.config.maxAttempts) {
@@ -561,10 +599,8 @@ if (filledCount < DATA.config.wordLength) { shakeRow(state.currentRow); showToas
       setTimeout(() => showResult(won), 500);
     } else {
       saveCurrentGame();
-  state.cursorCol = 0;
-console.log('cursorCol set to 0, currentRow:', state.currentRow, 'isAnimating:', state.isAnimating, 'gameOver:', state.gameOver);
-updateCurrentRow();
-console.log('tile-' + state.currentRow + '-0 class:', document.getElementById('tile-' + state.currentRow + '-0')?.className);
+      state.cursorCol = 0;
+      updateCurrentRow();
     }
   });
 }
