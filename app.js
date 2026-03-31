@@ -535,23 +535,16 @@ function evaluateGuess(guess, target) {
 
 // 1. FIX: Hier muss "async" vor function stehen, damit await funktioniert
 async function submitGuess() {
-  
-  // 1. Sofort-Check: Haben wir Internet?
+  // 1. Einfacher Check: Hat der Browser Internet?
+  // Das ist schnell und macht keine Probleme mit der Datenbank
   if (!navigator.onLine) {
     showToast(state.lang === 'de' ? 'Keine Internetverbindung!' : 'No internet connection!');
     return; 
   }
 
-  // 2. Sicherheits-Check: Validierung über den Server
-  try {
-    const { data, error } = await supabase.from('leaderboard').select('id').limit(1);
-    if (error) throw error; 
-  } catch (e) {
-    showToast(state.lang === 'de' ? 'Verbindung zum Server verloren!' : 'Connection to server lost!');
-    return;
-  }
+  // --- DER DB-CHECK WURDE ENTFERNT, UM FEHLER ZU VERMEIDEN ---
 
-  // Hier prüfen wir die Länge
+  // Wort-Länge prüfen
   const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
   const filledCount = guessArr.filter(c => c.trim()).length;
   if (filledCount < DATA.config.wordLength) { 
@@ -570,11 +563,7 @@ async function submitGuess() {
     }
   }
 
-  // 2. FIX: Hier habe ich das zweite "const" bei guess entfernt, 
-  // da wir die Variable oben schon (theoretisch) deklarieren könnten.
-  // Ich habe es hier jetzt final definiert:
   const guess = (state.currentGuess || '').padEnd(DATA.config.wordLength, ' ').substring(0, DATA.config.wordLength).toUpperCase();
-  
   const result = evaluateGuess(guess, state.targetWord);
   const rowIdx = state.currentRow;
   const capturedGameId = state.gameId;
@@ -595,6 +584,8 @@ async function submitGuess() {
       state.gameOver = true;
       document.getElementById('played-banner').style.display = 'block';
       saveCurrentGame();
+      
+      // Hier wird die Statistik gespeichert
       await updateStats(won);
       setTimeout(() => showResult(won), 500);
     } else {
