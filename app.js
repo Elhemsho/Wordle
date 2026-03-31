@@ -567,28 +567,21 @@ function evaluateGuess(guess, target) {
 
 // 1. FIX: Hier muss "async" vor function stehen, damit await funktioniert
 async function submitGuess() {
-  // 1. KEINE navigator.onLine Prüfung (zu unzuverlässig)
-  // 2. KEINE supabase.select Prüfung (verursacht deinen Fehler auf Netlify)
-try {
-    const onlineCheck = await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
-  } catch (e) {
-    showToast(state.lang === 'de' ? 'Keine echte Verbindung zum Internet!' : 'No real internet connection!');
-    return; // Sperre aktiv
-  }
-  // Nur die Wortlänge prüfen
+  // 1. ALLE SPERREN AM ANFANG ENTFERNT (Damit es auf Netlify/Handy sicher läuft)
+  
   const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
   const filledCount = guessArr.filter(c => c.trim()).length;
+  
   if (filledCount < DATA.config.wordLength) { 
-    shakeRow(state.currentRow); 
+    if (typeof shakeRow === 'function') shakeRow(state.currentRow); 
     showToast(state.ui.wordTooShort, 'error'); 
     return; 
   }
 
-  // Wortlisten-Check (läuft lokal, braucht kein Internet!)
   if (wordlistsReady) {
     const validSet = state.lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
     if (!validSet.has(state.currentGuess)) {
-      shakeRow(state.currentRow);
+      if (typeof shakeRow === 'function') shakeRow(state.currentRow);
       showToast(state.ui.invalidWord, 'error');
       return;
     }
@@ -599,36 +592,46 @@ try {
   const rowIdx = state.currentRow;
   const capturedGameId = state.gameId;
 
-  // State sofort aktualisieren
+  // State sofort lokal aktualisieren
   state.currentGuess = '';
   state.cursorCol = 0;
   state.currentRow++;
   state.guesses.push(guess);
-  updateCurrentRow(); 
+  if (typeof updateCurrentRow === 'function') updateCurrentRow(); 
 
   const won = result.every(r => r === 'correct');
 
-  // Animation starten
+  // Animation und Abschluss
   revealRow(rowIdx, guess, result, async () => {
     if (state.gameId !== capturedGameId) return;
 
     if (won || state.currentRow >= DATA.config.maxAttempts) {
       state.gameOver = true;
-      document.getElementById('played-banner').style.display = 'block';
-      saveCurrentGame();
+      const banner = document.getElementById('played-banner');
+      if (banner) banner.style.display = 'block';
       
-      // NUR HIER versuchen wir, die Statistik zu senden
+      saveCurrentGame(); // Speichert lokal im Browser (geht immer!)
+      
+      // VERSUCH DIE DATENBANK ZU ERREICHEN
       try {
-        await updateStats(won);
+        const { error } = await updateStats(won);
+        if (error) throw error;
       } catch (e) {
-        console.warn("Stats sync failed, but game is over.");
+        console.error("Sync failed:", e);
+        
+        // Hier fügen wir die 10000ms (10 Sekunden) hinzu
+        const msg = state.lang === 'de' 
+          ? 'Hinweis: Statistik wird offline nicht aktualisiert.' 
+          : 'Note: Stats not updated offline.';
+          
+        showToast(msg, 'warning', 20000); 
       }
       
       setTimeout(() => showResult(won), 500);
     } else {
       saveCurrentGame();
       state.cursorCol = 0;
-      updateCurrentRow();
+      if (typeof updateCurrentRow === 'function') updateCurrentRow();
     }
   });
 }
@@ -931,11 +934,22 @@ function shareResult() {
 
 function formatTime(sec) { return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`; }
 
-function showToast(msg, type = 'info') {
+function showToast(msg, type = 'info', duration = 3000) {
   const toast = document.createElement('div');
-  toast.className = `toast ${type}`; toast.textContent = msg;
-  document.getElementById('toast-container').appendChild(toast);
-  setTimeout(() => toast.remove(), 2800);
+  toast.className = `toast ${type}`; 
+  toast.textContent = msg;
+  
+  const container = document.getElementById('toast-container');
+  if (container) {
+    container.appendChild(toast);
+    
+    // Nutzt jetzt die 'duration', die du beim Aufruf übergibst
+    setTimeout(() => {
+      // Falls du eine CSS-Animation für das Ausblenden hast, 
+      // könntest du hier erst eine Klasse hinzufügen.
+      toast.remove();
+    }, duration);
+  }
 }
 
 document.addEventListener('keydown', e => {
