@@ -517,6 +517,7 @@ function evaluateGuess(guess, target) {
 }
 
 function submitGuess() {
+  
   const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
 const filledCount = guessArr.filter(c => c.trim()).length;
 if (filledCount < DATA.config.wordLength) { shakeRow(state.currentRow); showToast(state.ui.wordTooShort, 'error'); return; }
@@ -823,8 +824,8 @@ async function fetchAndRenderList() {
         });
       } else if (sort === 'avg') {
         rows = rows.sort((a, b) => {
-          const avgA = a.won > 0 ? a.total_attempts / a.won : 99;
-          const avgB = b.won > 0 ? b.total_attempts / b.won : 99;
+          const avgA = a.won > 0 ? a.total_attempts / a.played : 0;
+          const avgB = b.won > 0 ? b.total_attempts / b.played : 0;
           if (avgA !== avgB) return avgA - avgB; // niedriger Schnitt zuerst
           return b.won - a.won; // bei gleichem Schnitt: mehr Siege zuerst
         });
@@ -833,7 +834,7 @@ async function fetchAndRenderList() {
         const isMe = state.currentUser && s.user_id === state.currentUser.id;
         const rank = i < 3 ? `<span class="lb-rank-medal">${medals[i]}</span>` : `<span class="lb-rank">#${i+1}</span>`;
         const name = s.users?.username || s.username || '?';
-        const avg = s.won > 0 ? (s.total_attempts / s.won).toFixed(1) : '—';
+        const avg = s.played > 0 ? (s.total_attempts / s.played).toFixed(1) : '—';
         const winrate = s.played > 0 ? Math.round((s.won / s.played) * 100) + '%' : '0%';
         const hi = sort === 'avg'
           ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`

@@ -2,7 +2,6 @@ Fixes:
 - emojis raus
 - profil bearbeiten - namen ädnern / emailadresse ändern / - white mode
 - registrieren - passwort zurücksetzen / email bestätigen
-- löde?
 
 Ideen:
 - fun mode geht nicht in die statisikien
