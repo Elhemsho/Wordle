@@ -1,4 +1,15 @@
     /* ===== CSS VARIABLES ===== */
+    /* In deine CSS Datei */
+/*body.is-offline {
+  filter: grayscale(0.8); /* Macht die Seite fast schwarz-weiß 
+  pointer-events: none;   /* Verhindert JEDE Interaktion (Klicks, Tippen) 
+  user-select: none;
+}
+
+body.is-offline .keyboard {
+  opacity: 0.5; /* Tastatur ausgrauen 
+}
+*/
     :root {
       --primary: #E8580A;
       --primary-light: #F47C3C;
@@ -295,7 +306,7 @@
       opacity: 0.55; 
       cursor: default;
     }
-    
+
     .result-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); z-index: 150; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.4s; }
     .result-overlay.open { opacity: 1; pointer-events: all; }
     .result-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px; padding: 40px; max-width: 380px; width: 100%; text-align: center; transform: scale(0.85); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 32px 100px rgba(0,0,0,0.6); position: relative; }

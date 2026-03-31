@@ -43,22 +43,40 @@ let state = {
 
 async function loadData() {
   try {
+    // 1. Versuch: Lade die Konfiguration/UI aus der JSON
     const resp = await fetch('data.json');
+    if (!resp.ok) throw new Error("Network response was not ok");
     DATA = await resp.json();
   } catch (e) {
+    console.error("Could not fetch data.json, using minimal UI config:", e);
+    // Hier nur noch das Nötigste für die UI, KEINE Wortlisten mehr!
     DATA = {
       config: { wordLength: 5, maxAttempts: 6, defaultLanguage: 'de', minGamesForLeaderboard: 3 },
-      languages: {
-        de: { name: 'Deutsch', flag: '🇩🇪', words: ['APFEL','BLUME','KRAFT','RAUCH','STARK','TISCH','VOGEL','WELLE','ADLER','BRAND','EISEN','FISCH','GABEL','JUBEL','KISTE','LICHT','REGEN','SONNE','TIGER','WOLKE','ZUNGE','ABEND','MAUER','NACHT','PFEIL'] },
-        en: { name: 'English', flag: '🇬🇧', words: ['FLAME','BLAST','CRISP','DRAPE','ELDER','FAINT','GROAN','HASTE','IVORY','JOUST','KNEEL','LANKY','MIRTH','NOBLE','OLIVE','PERCH','QUILL','RAVEN','SLOTH','WALTZ','XENON','ZESTY','ABIDE','BLOWN','CLEFT'] }
-      },
-      ui: {
-        de: { title:'WÖRDLE',subtitle:'Das tägliche Wort-Rätsel',login:'Anmelden',register:'Registrieren',logout:'Abmelden',profile:'Profil',leaderboard:'Bestenliste',play:'Spielen',username:'Benutzername',password:'Passwort',email:'E-Mail',streak:'Serie',longestStreak:'Längste Serie',avgAttempts:'Ø Versuche',gamesPlayed:'Spiele',gamesWon:'Gewonnen',todayLeaderboard:'Heutige Bestenliste',rank:'Rang',player:'Spieler',attempts:'Versuche',time:'Zeit',guessWord:'Tippe ein Wort...',submit:'Eingabe',newWordIn:'Neues Wort in',congratulations:'Glückwunsch!',solvedIn:'Gelöst in',gameOver:'Spiel vorbei!',wordWas:'Das Wort war',alreadyPlayed:'Du hast heute schon gespielt!',registerSuccess:'Registrierung erfolgreich!',loginSuccess:'Willkommen zurück!',invalidWord:'Kein gültiges Wort!',wordTooShort:'Das Wort ist zu kurz!',noAccount:'Noch kein Konto?',hasAccount:'Bereits ein Konto?',currentStreak:'Aktuelle Serie',statistics:'Statistiken',shareResult:'Ergebnis teilen',copied:'Kopiert!',top10Today:'Top 10 heute',languageSwitch:'Sprache' },
-        en: { title:'WORDLE',subtitle:'The Daily Word Puzzle',login:'Login',register:'Register',logout:'Logout',profile:'Profile',leaderboard:'Leaderboard',play:'Play',username:'Username',password:'Password',email:'Email',streak:'Streak',longestStreak:'Best Streak',avgAttempts:'Avg. Attempts',gamesPlayed:'Games Played',gamesWon:'Games Won',todayLeaderboard:"Today's Leaderboard",rank:'Rank',player:'Player',attempts:'Attempts',time:'Time',guessWord:'Type a word...',submit:'Enter',newWordIn:'New word in',congratulations:'Congratulations!',solvedIn:'Solved in',gameOver:'Game Over!',wordWas:'The word was',alreadyPlayed:'You already played today!',registerSuccess:'Registration successful!',loginSuccess:'Welcome back!',invalidWord:'Not a valid word!',wordTooShort:'Word is too short!',noAccount:'No account yet?',hasAccount:'Already have an account?',currentStreak:'Current Streak',statistics:'Statistics',shareResult:'Share Result',copied:'Copied!',top10Today:'Top 10 Today',languageSwitch:'Language' }
-      }
+      languages: { de: { name: 'Deutsch', flag: '🇩🇪' }, en: { name: 'English', flag: '🇬🇧' } },
+      ui: { /* ... dein UI-Objekt von oben, aber ohne die 'words' Listen ... */ }
     };
   }
-  await loadWordlists().catch(e => console.warn("Wordlists failed:", e));
+
+  // 2. Wortlisten laden (Deine separaten JS-Dateien)
+  try {
+    await loadWordlists(); 
+    // Falls loadWordlists fehlschlägt, merken wir das hier
+  } catch (e) {
+    console.warn("Wordlists failed to load (Offline?):", e);
+    showToast(state.lang === 'de' ? 'Wortlisten konnten nicht geladen werden!' : 'Could not load wordlists!');
+    return; // Abbruch! Ohne Wörter kein Spiel.
+  }
+
+  // 3. WICHTIG: Sicherstellen, dass ein targetWord existiert
+  // Wenn kein Wort geladen werden konnte, darf init() nicht einfach starten
+  if (!state.targetWord && typeof getTargetWord === 'function') {
+      try {
+          state.targetWord = getTargetWord(); // Oder wie auch immer du das Wort des Tages holst
+      } catch (e) {
+          console.error("Target word selection failed");
+      }
+  }
+
   init();
 }
 
@@ -375,23 +393,27 @@ function logout() {
 }
 
 function setupGamePage() {
-  // Increment gameId so any running animation callbacks from the previous game are ignored
+  // 1. IDs und Status zurücksetzen
   state.gameId = (state.gameId || 0) + 1;
-  state.isAnimating = false;  // reset in case we navigated away mid-animation
+  state.isAnimating = false;
 
+  // 2. ERST das Wort und den Key generieren
   state.todayKey = getTodayKey(state.lang);
   state.targetWord = getDailyWord(state.lang);
 
-  if (state.gameOver) {
-  setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
-}
+  // 3. JETZT prüfen, ob das Wort geladen wurde
+  if (!state.targetWord) {
+    showToast(state.lang === 'de' ? "Fehler beim Laden des Wortes. Bitte Seite neu laden." : "Error loading word. Please refresh.");
+    return;
+  }
 
-  // Always add today's word to valid sets
+  // 4. Das Zielwort sicherheitshalber zu den validen Listen hinzufügen
   if (wordlistsReady) {
     VALID_WORDS_DE.add(state.targetWord);
     VALID_WORDS_EN.add(state.targetWord);
   }
 
+  // --- LOGIK FÜR NICHT ANGEMELDETE USER (GÄSTE) ---
   if (!state.currentUser) {
     state.gameOver = false;
     state.currentGuess = '';
@@ -400,23 +422,33 @@ function setupGamePage() {
     state.keyColors = {};
     state.guesses = [];
     state.startTime = Date.now();
+    
     buildGrid();
     buildKeyboard();
-    document.getElementById('played-banner').style.display = state.gameOver ? 'block' : 'none';
-setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
+    
+    // Banner bei Gästen standardmäßig aus
+    document.getElementById('played-banner').style.display = 'none';
     return;
   }
 
+  // --- LOGIK FÜR ANGEMELDETE USER ---
   const savedGame = getGameState(state.currentUser.username, state.todayKey);
   state.gameOver = savedGame ? savedGame.gameOver : false;
   state.guesses = savedGame ? savedGame.guesses : [];
-  state.currentRow = state.guesses.length;  // always derived from guesses — never out of sync
+  state.currentRow = state.guesses.length; 
   state.keyColors = savedGame ? savedGame.keyColors : {};
   state.currentGuess = '';
   state.cursorCol = 0;
   state.startTime = savedGame ? savedGame.startTime : Date.now();
 
-  document.getElementById('played-banner').style.display = state.gameOver ? 'block' : 'none';
+  // Banner zeigen, falls das Spiel schon beendet wurde
+  if (state.gameOver) {
+    document.getElementById('played-banner').style.display = 'block';
+    setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
+  } else {
+    document.getElementById('played-banner').style.display = 'none';
+  }
+
   buildGrid();
   buildKeyboard();
   restoreGuesses();
@@ -535,16 +567,11 @@ function evaluateGuess(guess, target) {
 
 // 1. FIX: Hier muss "async" vor function stehen, damit await funktioniert
 async function submitGuess() {
-  // 1. Einfacher Check: Hat der Browser Internet?
-  // Das ist schnell und macht keine Probleme mit der Datenbank
-  if (!navigator.onLine) {
-    showToast(state.lang === 'de' ? 'Keine Internetverbindung!' : 'No internet connection!');
-    return; 
+  if (navigator.onLine === false) {
+    showToast(state.lang === 'de' ? 'Keine Internetverbindung! Tippen gesperrt.' : 'No internet! Guessing disabled.');
+    return; // Hier bricht die Funktion ab, bevor das Wort geprüft wird
   }
-
-  // --- DER DB-CHECK WURDE ENTFERNT, UM FEHLER ZU VERMEIDEN ---
-
-  // Wort-Länge prüfen
+  
   const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
   const filledCount = guessArr.filter(c => c.trim()).length;
   if (filledCount < DATA.config.wordLength) { 
