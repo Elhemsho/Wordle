@@ -567,11 +567,15 @@ function evaluateGuess(guess, target) {
 
 // 1. FIX: Hier muss "async" vor function stehen, damit await funktioniert
 async function submitGuess() {
-  if (navigator.onLine === false) {
-    showToast(state.lang === 'de' ? 'Keine Internetverbindung! Tippen gesperrt.' : 'No internet! Guessing disabled.');
-    return; // Hier bricht die Funktion ab, bevor das Wort geprüft wird
+  // 1. KEINE navigator.onLine Prüfung (zu unzuverlässig)
+  // 2. KEINE supabase.select Prüfung (verursacht deinen Fehler auf Netlify)
+try {
+    const onlineCheck = await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
+  } catch (e) {
+    showToast(state.lang === 'de' ? 'Keine echte Verbindung zum Internet!' : 'No real internet connection!');
+    return; // Sperre aktiv
   }
-  
+  // Nur die Wortlänge prüfen
   const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
   const filledCount = guessArr.filter(c => c.trim()).length;
   if (filledCount < DATA.config.wordLength) { 
@@ -580,7 +584,7 @@ async function submitGuess() {
     return; 
   }
 
-  // Wortlisten Check
+  // Wortlisten-Check (läuft lokal, braucht kein Internet!)
   if (wordlistsReady) {
     const validSet = state.lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
     if (!validSet.has(state.currentGuess)) {
@@ -595,7 +599,7 @@ async function submitGuess() {
   const rowIdx = state.currentRow;
   const capturedGameId = state.gameId;
 
-  // State sofort updaten
+  // State sofort aktualisieren
   state.currentGuess = '';
   state.cursorCol = 0;
   state.currentRow++;
@@ -604,6 +608,7 @@ async function submitGuess() {
 
   const won = result.every(r => r === 'correct');
 
+  // Animation starten
   revealRow(rowIdx, guess, result, async () => {
     if (state.gameId !== capturedGameId) return;
 
@@ -612,8 +617,13 @@ async function submitGuess() {
       document.getElementById('played-banner').style.display = 'block';
       saveCurrentGame();
       
-      // Hier wird die Statistik gespeichert
-      await updateStats(won);
+      // NUR HIER versuchen wir, die Statistik zu senden
+      try {
+        await updateStats(won);
+      } catch (e) {
+        console.warn("Stats sync failed, but game is over.");
+      }
+      
       setTimeout(() => showResult(won), 500);
     } else {
       saveCurrentGame();
