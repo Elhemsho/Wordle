@@ -1,9 +1,10 @@
 Fixes:
-- emojis raus
-- profil bearbeiten - namen ädnern / emailadresse ändern / - white mode
+- (emojis raus)
+- white mode
 - registrieren - passwort zurücksetzen / email bestätigen
+- internet fix, wenn nicht geht nachricht das nciht gespiechert
 
 Ideen:
 - fun mode geht nicht in die statisikien
-- freunde adden -> team streak
+- freunde adden -> deren profile ansehen
 - dordle mdous...

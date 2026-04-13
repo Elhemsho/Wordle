@@ -333,6 +333,18 @@ body.is-offline .keyboard {
     .profile-info h2 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; }
     .profile-info p { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
 
+.edit-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85em;
+  opacity: 0.5;
+  padding: 0 4px;
+  transition: opacity 0.2s;
+  vertical-align: middle;
+}
+.edit-icon-btn:hover { opacity: 1; }
+
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
     .stat-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 12px; padding: 24px; text-align: center; transition: border-color 0.2s, transform 0.2s; }
     .stat-card:hover { border-color: var(--primary); transform: translateY(-2px); }

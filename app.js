@@ -614,18 +614,18 @@ async function submitGuess() {
       
       // VERSUCH DIE DATENBANK ZU ERREICHEN
       try {
-        const { error } = await updateStats(won);
-        if (error) throw error;
-      } catch (e) {
-        console.error("Sync failed:", e);
-        
-        // Hier fügen wir die 10000ms (10 Sekunden) hinzu
-        const msg = state.lang === 'de' 
-          ? 'Hinweis: Statistik wird offline nicht aktualisiert.' 
-          : 'Note: Stats not updated offline.';
-          
-        showToast(msg, 'warning', 20000); 
-      }
+  await updateStats(won);
+} catch (e) {
+  console.error("Sync failed:", e);
+  
+  // Nur anzeigen wenn wirklich offline
+  if (!navigator.onLine) {
+    const msg = state.lang === 'de' 
+      ? 'Hinweis: Statistik wird offline nicht aktualisiert.' 
+      : 'Note: Stats not updated offline.';
+    showToast(msg, 'warning', 20000); 
+  }
+}
       
       setTimeout(() => showResult(won), 500);
     } else {
@@ -715,7 +715,9 @@ if (s && s.last_played_date === yesterday.toDateString()) streak++;
     if (s) await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`, { method: 'PATCH', body: JSON.stringify(statsData), prefer: 'return=minimal' });
     else await sbFetch('stats', { method: 'POST', body: JSON.stringify(statsData), prefer: 'return=minimal' });
 
-    const lbEx = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.${lang}&day_key=eq.${state.todayKey}`);
+    const correctDayKey = getTodayKey(lang); // statt state.todayKey
+const lbEx = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.${lang}&day_key=eq.${correctDayKey}`);
+
 if (!lbEx || lbEx.length === 0) {
   await sbFetch('leaderboard', { method: 'POST', body: JSON.stringify({
     user_id: userId, username: state.currentUser.username, lang,
@@ -781,8 +783,14 @@ async function setupProfilePage() {
   document.getElementById('profile-content').style.display = 'block';
   const flag = DATA.languages[state.lang].flag, langName = DATA.languages[state.lang].name;
   document.getElementById('profile-avatar').textContent = state.currentUser.username[0].toUpperCase();
-  document.getElementById('profile-username').textContent = state.currentUser.username;
-  document.getElementById('profile-email').textContent = state.currentUser.email + ' · ' + flag + ' ' + langName;
+  const de2 = state.lang === 'de';
+const editTitle = de2 ? 'Bearbeiten' : 'Edit';
+
+const unameEl = document.getElementById('profile-username');
+unameEl.innerHTML = `${state.currentUser.username} <button class="edit-icon-btn" title="${editTitle}" onclick="updateUsernameOrEmail('username')">✏️</button>`;
+
+const emailEl = document.getElementById('profile-email');
+emailEl.innerHTML = `${state.currentUser.email} · ${flag} ${langName} <button class="edit-icon-btn" title="${editTitle}" onclick="updateUsernameOrEmail('email')">✏️</button>`;
   ['stat-streak','stat-best-streak','stat-played','stat-won'].forEach(id => document.getElementById(id).textContent = '…');
   document.getElementById('stat-avg').textContent = '…';
   document.getElementById('stat-winrate').textContent = '…';
@@ -796,6 +804,58 @@ async function setupProfilePage() {
     document.getElementById('stat-avg').textContent = s && s.played ? (s.total_attempts / s.played).toFixed(1) : '—';
     document.getElementById('stat-winrate').textContent = s && s.played ? Math.round((s.won / s.played) * 100) + '%' : '0%';
   } catch (e) { console.error('Profile error:', e); }
+}
+
+async function updateUsernameOrEmail(field) {
+  const de = state.lang === 'de';
+  const isUsername = field === 'username';
+
+  const currentVal = isUsername ? state.currentUser.username : state.currentUser.email;
+  const label = isUsername
+    ? (de ? 'Neuer Benutzername' : 'New username')
+    : (de ? 'Neue E-Mail-Adresse' : 'New email address');
+
+  const newVal = prompt(label + ':', currentVal);
+  if (!newVal || newVal.trim() === currentVal) return;
+  const trimmed = newVal.trim();
+
+  // Validierung
+  if (isUsername && trimmed.length < 2) {
+    showToast(de ? 'Name zu kurz (mind. 2 Zeichen)' : 'Name too short (min. 2 chars)', 'error'); return;
+  }
+  if (!isUsername && !trimmed.includes('@')) {
+    showToast(de ? 'Ungültige E-Mail' : 'Invalid email', 'error'); return;
+  }
+
+  try {
+    // 1. users-Tabelle updaten
+    await sbFetch(`users?id=eq.${state.currentUser.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ [field]: trimmed }),
+      prefer: 'return=minimal'
+    });
+
+    // 2. Falls Username geändert: leaderboard-Einträge mitziehen
+    if (isUsername) {
+      await sbFetch(`leaderboard?user_id=eq.${state.currentUser.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ username: trimmed }),
+        prefer: 'return=minimal'
+      });
+    }
+
+    // 3. Session + State aktualisieren
+    state.currentUser[field] = trimmed;
+    saveSessionUser(state.currentUser);
+
+    showToast(de ? 'Erfolgreich gespeichert ✓' : 'Saved successfully ✓', 'success');
+    setupProfilePage(); // Profil neu rendern
+  } catch (e) {
+    const dupMsg = e.message.includes('unique')
+      ? (de ? 'Name oder E-Mail bereits vergeben!' : 'Username or email already taken!')
+      : (de ? 'Fehler beim Speichern.' : 'Error saving.');
+    showToast(dupMsg, 'error');
+  }
 }
 
 async function setupLeaderboardPage() {
@@ -891,8 +951,8 @@ async function fetchAndRenderList() {
         });
       } else if (sort === 'avg') {
         rows = rows.sort((a, b) => {
-          const avgA = a.won > 0 ? a.total_attempts / a.played : 0;
-          const avgB = b.won > 0 ? b.total_attempts / b.played : 0;
+          const avgA = a.played > 0 ? a.total_attempts / a.played : 0;
+          const avgB = b.played > 0 ? b.total_attempts / b.played : 0;
           if (avgA !== avgB) return avgA - avgB; // niedriger Schnitt zuerst
           return b.won - a.won; // bei gleichem Schnitt: mehr Siege zuerst
         });
