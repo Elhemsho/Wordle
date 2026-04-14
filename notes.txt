@@ -1,7 +1,4 @@
 Fixes:
-- (emojis raus)
-- internet wenn nicht geht nachricht das nciht gespiechert wird nicht angezeigt.
-- zeit bis winpop up verkürzen
 - abstand von spiel zur tastatur bisschen größer
 - bei handy modus / octordle footer nicht so weit unten
 

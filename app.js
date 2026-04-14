@@ -31,6 +31,21 @@ async function sbFetch(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// Neue Hilfsfunktion, irgendwo oben einfügen:
+async function isOnline() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: 'HEAD',
+      headers: { 'apikey': SUPABASE_KEY },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(1500)
+    });
+    return res.ok || res.status < 500;
+  } catch {
+    return false;
+  }
+}
+
 let DATA = null;
 let state = {
   lang: 'de', currentUser: null, currentGuess: '', currentRow: 0,
@@ -284,7 +299,7 @@ async function switchLanguage(lang) {
   if (state.isAnimating || funState.isAnimating) return;
 
   // 2. Internet-Check: Sprachwechsel braucht Internet, um neue Wörter zu laden
-  if (!navigator.onLine) {
+  if (!(await isOnline())) {
     showToast(state.lang === 'de' ? 'Sprachwechsel nur mit Internet möglich!' : 'Language switch requires internet!');
     return;
   }
@@ -581,7 +596,10 @@ function evaluateGuess(guess, target) {
 // 1. FIX: Hier muss "async" vor function stehen, damit await funktioniert
 async function submitGuess() {
   // 1. ALLE SPERREN AM ANFANG ENTFERNT (Damit es auf Netlify/Handy sicher läuft)
-  
+  if (!(await isOnline())) {
+    showToast(state.lang === 'de' ? 'Keine Internetverbindung!' : 'No internet connection!', 'error');
+    return;
+  }
   const guessArr = (state.currentGuess || '').padEnd(DATA.config.wordLength, '').split('');
   const filledCount = guessArr.filter(c => c.trim()).length;
   
@@ -616,26 +634,30 @@ async function submitGuess() {
 
   // Animation und Abschluss
   revealRow(rowIdx, guess, result, async () => {
-    if (state.gameId !== capturedGameId) return;
-
-    if (won || state.currentRow >= DATA.config.maxAttempts) {
+     if (won || state.currentRow >= DATA.config.maxAttempts) {
       state.gameOver = true;
-      const banner = document.getElementById('played-banner');
-      if (banner) banner.style.display = 'block';
+      // Banner NICHT hier zeigen — erst nach Animation in showResult
       
-      saveCurrentGame(); // Speichert lokal im Browser (geht immer!)
+      saveCurrentGame();
       
-      // VERSUCH DIE DATENBANK ZU ERREICHEN
-      try {
-  await updateStats(won);
-} catch (e) {
-  console.error("Sync failed:", e);
-  if (!navigator.onLine) {
-    state._offlineWarningPending = true;
-  }
-}
+      if (state.currentUser) {
+        const isOnline = navigator.onLine;
+        if (!isOnline) {
+          state._offlineWarningPending = true;
+        } else {
+          try {
+            await updateStats(won);
+          } catch (e) {
+            console.error("Sync failed:", e);
+            // Nochmal prüfen falls Verbindung während Request weg
+            if (!navigator.onLine) {
+              state._offlineWarningPending = true;
+            }
+          }
+        }
+      }
       
-      setTimeout(() => showResult(won), 100);
+      showResult(won);
     } else {
       saveCurrentGame();
       state.cursorCol = 0;
@@ -645,10 +667,10 @@ async function submitGuess() {
 }
 
 function revealRow(rowIdx, guess, result, callback) {
-  const stagger = 400;
+  const stagger = 300;
   const flipMs = 600;
   const flipHalf = flipMs / 2;
-  const totalDuration = DATA.config.wordLength * stagger + flipMs + 80;
+  const totalDuration = (DATA.config.wordLength - 1) * stagger + flipMs;
 
   state.isAnimating = true;
 
@@ -751,6 +773,11 @@ async function showResult(won) {
     } catch (e) { document.getElementById('res-streak').textContent = 0; }
   }
   document.getElementById('res-time').textContent = formatTime(Math.floor((Date.now() - state.startTime) / 1000));
+  const banner = document.getElementById('played-banner');
+  if (banner) {
+    setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
+    banner.style.display = 'block';
+  }
   document.getElementById('result-overlay').classList.add('open');
   startResultCountdown();
   if (state._offlineWarningPending) {
@@ -1369,11 +1396,11 @@ function updateFunKeySegmentForIndex(guess, results, numGrids, i) {
 }
 
 function revealFunRow(gridIdx, rowIdx, guess, result, callback) {
-  const stagger = 350;
-  const flipMs = 480;
+  const stagger = 300;
+  const flipMs = 600;
   const flipHalf = flipMs / 2;
+  const total = (DATA.config.wordLength - 1) * stagger + flipMs;
   const wl = funState.wordLength;
-  const total = wl * stagger + flipMs + 50;
 
   for (let c = 0; c < wl; c++) {
     const tile = document.getElementById(`fun-tile-${gridIdx}-${rowIdx}-${c}`);
