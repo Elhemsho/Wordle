@@ -1,6 +1,7 @@
 Fixes:
-- abstand von spiel zur tastatur bisschen größer
-- bei handy modus / octordle footer nicht so weit unten
+- fun mode abstand von spiel zur tastatur bisschen größer wie bei daily
+- fun mode win zeile bei kleinen bildschirmen anpassen
+- fun mode größe von wordle gleich wie daily wordle
 
 Ideen:
 - freunde adden -> deren profile ansehen

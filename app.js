@@ -1157,11 +1157,34 @@ function buildFunGrids(cfg, targets) {
   container.innerHTML = '';
   container.className = `funmode-grids grids-${cfg.grids}`;
 
-  // Wie viele Rows initial sichtbar? Quordle: 3, Octordle: 2, Rest: alle
-  const initialVisible = cfg.grids === 8 ? 3 : cfg.grids === 4 ? 3 : cfg.attempts;
-  funState.visibleRows = initialVisible;
+  // --- NEU: Dynamische Berechnung der sichtbaren Reihen ---
+  let initialVisible;
 
-   
+  if (cfg.grids === 4 || cfg.grids === 8) {
+    // Standard für Desktop/Laptop
+    initialVisible = 3; 
+
+    // Tablet-Bereich: Unter 800px (bis 450px) -> 4 Reihen
+    if (window.innerWidth < 800 && window.innerWidth >= 450) {
+      initialVisible = 4;
+    } 
+    // Handy-Bereich: Unter 450px
+    else if (window.innerWidth < 450) {
+      // Nur bei Quordle (4 Grids) gehen wir auf 5 Reihen
+      if (cfg.grids === 4) {
+        initialVisible = 6;
+      } else {
+        // Bei Octordle (8 Grids) bleiben wir bei 4 Reihen
+        initialVisible = 4;
+      }
+    }
+} else {
+    // Für Solo oder Dordle (2 Grids) bleiben alle Versuche sichtbar
+    initialVisible = cfg.attempts;
+}
+
+  funState.visibleRows = initialVisible;
+  // -------------------------------------------------------
 
   for (let g = 0; g < cfg.grids; g++) {
     const wrapper = document.createElement('div');
@@ -1180,9 +1203,12 @@ function buildFunGrids(cfg, targets) {
 
     for (let r = 0; r < cfg.attempts; r++) {
       const row = document.createElement('div');
-      row.className = 'grid-row'; row.id = `fun-row-${g}-${r}`;
+      row.className = 'grid-row'; 
+      row.id = `fun-row-${g}-${r}`;
+      
       // Rows über initialVisible verstecken
       if (r >= initialVisible) row.style.display = 'none';
+
       for (let c = 0; c < funState.wordLength; c++) {
         const tile = document.createElement('div');
         tile.className = 'fun-tile grid-tile';
@@ -1456,13 +1482,22 @@ function afterFunReveal(rowIdx, results) {
   const lang = state.lang;
 
   const cfg = FUN_CONFIG[funState.mode];
-  if ((cfg.grids === 4 || cfg.grids === 8) && funState.visibleRows < cfg.attempts) {
-    funState.visibleRows++;
-    for (let g = 0; g < cfg.grids; g++) {
-      const nextRow = document.getElementById(`fun-row-${g}-${funState.visibleRows - 1}`);
-      if (nextRow) nextRow.style.display = '';
+  // Nur bei Quordle (4) oder Octordle (8)
+if ((cfg.grids === 4 || cfg.grids === 8) && funState.visibleRows < cfg.attempts) {
+    
+    // NEU: Nur erhöhen, wenn wir gerade in die LETZTE sichtbare Zeile geschrieben haben
+    // rowIdx ist 0-basiert, also ist (rowIdx + 1) die Nummer des aktuellen Versuchs.
+    if ((rowIdx + 1) >= funState.visibleRows) {
+        
+        funState.visibleRows++;
+        
+        for (let g = 0; g < cfg.grids; g++) {
+            const nextRow = document.getElementById(`fun-row-${g}-${funState.visibleRows - 1}`);
+            // Wir nutzen 'flex', damit die Zeile korrekt erscheint (oder dein Standard-Display)
+            if (nextRow) nextRow.style.display = ''; 
+        }
     }
-  }
+}
 
   for (let g = 0; g < cfg.grids; g++) {
     if (funState.gridDone[g]) continue;
