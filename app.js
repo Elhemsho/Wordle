@@ -177,8 +177,9 @@ function applyLanguage(lang) {
   setEl('played-title', state.ui.alreadyPlayed);
   setElHTML('result-countdown-text', state.ui.newWordIn + ' <span id="result-timer">00:00:00</span>');
   setEl('game-subtitle', lang === 'de' ? 'WORT DES TAGES' : 'WORD OF THE DAY');
-  setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + (state.targetWord || ''));
-
+  if (state.gameOver && state.targetWord) {
+    setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
+  }
   setEl('footer-logo', state.ui.title);
   setEl('footer-imp', lang === 'de' ? 'Impressum' : 'Legal Notice');
   setEl('footer-ds', lang === 'de' ? 'Datenschutz' : 'Privacy Policy');
@@ -276,10 +277,11 @@ function applyLanguage(lang) {
     setEl('ds-analyse-title', 'Traffic Analysis (Umami)');
     setEl('ds-analyse-text', 'We use Umami to statistically evaluate the use of our website. Umami does not use cookies and does not store personal data. Data is processed anonymously within the EU.');
   }
+  if (typeof updateDrawerLanguage === 'function') updateDrawerLanguage(lang);
 }
 async function switchLanguage(lang) {
   // 1. Verhindern, dass während Animationen gewechselt wird
-  if (state.isAnimating) return;
+  if (state.isAnimating || funState.isAnimating) return;
 
   // 2. Internet-Check: Sprachwechsel braucht Internet, um neue Wörter zu laden
   if (!navigator.onLine) {
@@ -300,6 +302,13 @@ async function switchLanguage(lang) {
     await loadData(); 
     setupGamePage();
   } 
+  else if (pageId === 'page-funmode') {
+    if (funState.isAnimating) return;
+    // Sprach-Reset: State forcieren damit setupFunMode neu startet
+    funState.guesses = [];
+    funState.gameOver = false;
+    setupFunMode(funState.mode);
+  }
   else if (pageId === 'page-profile') setupProfilePage();
   else if (pageId === 'page-leaderboard') setupLeaderboardPage();
 }
@@ -311,7 +320,11 @@ function navigate(page) {
   if (page === 'profile') setupProfilePage();
   if (page === 'leaderboard') setupLeaderboardPage();
 }
-function startGame() { navigate('game'); }
+function startGame() {
+  state.isAnimating = false;   // sicherstellen dass kein Fun-Mode-Lock übrig ist
+  funState.isAnimating = false;
+  navigate('game');
+}
 
 function updateHeaderAuth() {
   const authDiv = document.getElementById('header-auth');
@@ -617,17 +630,12 @@ async function submitGuess() {
   await updateStats(won);
 } catch (e) {
   console.error("Sync failed:", e);
-  
-  // Nur anzeigen wenn wirklich offline
   if (!navigator.onLine) {
-    const msg = state.lang === 'de' 
-      ? 'Hinweis: Statistik wird offline nicht aktualisiert.' 
-      : 'Note: Stats not updated offline.';
-    showToast(msg, 'warning', 20000); 
+    state._offlineWarningPending = true;
   }
 }
       
-      setTimeout(() => showResult(won), 500);
+      setTimeout(() => showResult(won), 100);
     } else {
       saveCurrentGame();
       state.cursorCol = 0;
@@ -640,7 +648,7 @@ function revealRow(rowIdx, guess, result, callback) {
   const stagger = 400;
   const flipMs = 600;
   const flipHalf = flipMs / 2;
-  const totalDuration = DATA.config.wordLength * stagger + flipMs + 100;
+  const totalDuration = DATA.config.wordLength * stagger + flipMs + 80;
 
   state.isAnimating = true;
 
@@ -660,8 +668,8 @@ function revealRow(rowIdx, guess, result, callback) {
   }
 
   setTimeout(() => {
-    state.isAnimating = false;
     callback();
+    state.isAnimating = false;
   }, totalDuration);
 }
 
@@ -726,7 +734,7 @@ if (!lbEx || lbEx.length === 0) {
     time_seconds: elapsedSec
   }), prefer: 'return=minimal' });
 }
-  } catch (e) { console.error('Stats error:', e); }
+  } catch (e) { console.error('Stats error:', e); throw e;}
 }
 
 async function showResult(won) {
@@ -745,9 +753,28 @@ async function showResult(won) {
   document.getElementById('res-time').textContent = formatTime(Math.floor((Date.now() - state.startTime) / 1000));
   document.getElementById('result-overlay').classList.add('open');
   startResultCountdown();
+  if (state._offlineWarningPending) {
+    const msg = state.lang === 'de'
+      ? 'Keine Verbindung – Statistik nicht gespeichert.'
+      : 'Offline – stats not saved.';
+    document.getElementById('offline-warning-banner').textContent = msg;
+    document.getElementById('offline-warning-banner').style.display = 'block';
+    state._offlineWarningPending = false;
+  } else {
+    document.getElementById('offline-warning-banner').style.display = 'none';
+  }
 }
 
-function closeResult() { document.getElementById('result-overlay').classList.remove('open'); }
+function closeResult() {
+  document.getElementById('result-overlay').classList.remove('open');
+  document.getElementById('offline-warning-banner').style.display = 'none';
+  // played-sub sofort korrekt befüllen
+  if (state.gameOver && state.targetWord) {
+    setEl('played-sub', (state.lang === 'de' ? 'Heutiges Wort: ' : "Today's word: ") + state.targetWord);
+    const banner = document.getElementById('played-banner');
+    if (banner) banner.style.display = 'block';
+  }
+}
 
 let resultCountdownInterval = null;
 function startResultCountdown() {
@@ -1024,5 +1051,478 @@ document.addEventListener('keydown', e => {
 });
 document.getElementById('input-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('input-reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+
+// ===== DRAWER =====
+function toggleDrawer() {
+  const drawer = document.getElementById('side-drawer');
+  const overlay = document.getElementById('drawer-overlay');
+  const open = drawer.classList.toggle('open');
+  overlay.classList.toggle('open', open);
+}
+function closeDrawer() {
+  document.getElementById('side-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+// ===== FUN MODE =====
+const FUN_CONFIG = {
+  solo:    { grids: 1, attempts: 6 },
+  dordle:  { grids: 2, attempts: 7 },
+  quordle: { grids: 4, attempts: 9 },
+  octordle:{ grids: 8, attempts: 13 }
+};
+
+let funState = {
+  mode: 'solo', targets: [], guesses: [], gridDone: [],
+  currentGuess: '', cursorCol: 0, gameOver: false, isAnimating: false,
+  keySegments: {}, wordLength: 5
+};
+
+function getRandomWord(lang) {
+  const list = lang === 'de'
+    ? (typeof DAILY_WORDS_DE !== 'undefined' && DAILY_WORDS_DE.length > 0 ? DAILY_WORDS_DE : [])
+    : (typeof DAILY_WORDS_EN !== 'undefined' && DAILY_WORDS_EN.length > 0 ? DAILY_WORDS_EN : []);
+  if (!list.length) return null;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function setupFunMode(mode) {
+  if (funState.isAnimating) return; 
+    if (funState.guesses.length > 0 && !funState.gameOver && mode === funState.mode) return;
+  funState.mode = mode;
+  const cfg = FUN_CONFIG[mode];
+  const lang = state.lang;
+
+  const targets = [];
+  const used = new Set();
+  for (let i = 0; i < cfg.grids; i++) {
+    let w, tries = 0;
+    do { w = getRandomWord(lang); tries++; } while (used.has(w) && tries < 300);
+    if (!w) { showToast(lang === 'de' ? 'Wortlisten nicht geladen!' : 'Wordlists not loaded!', 'error'); return; }
+    used.add(w);
+    targets.push(w);
+  }
+
+  funState = {
+    mode, targets, guesses: [],
+    gridDone: Array(cfg.grids).fill(false),
+    currentGuess: '', cursorCol: 0,
+    gameOver: false, isAnimating: false,
+    keySegments: {}, wordLength: DATA.config.wordLength,
+    visibleRows: 0,
+    sessionId: Date.now()   // ← neu
+  };
+
+  const modeNames = {
+    de: { solo: 'WÖRDLE', dordle: 'DORDLE', quordle: 'QUORDLE', octordle: 'OCTORDLE' },
+    en: { solo: 'WORDLE', dordle: 'DORDLE', quordle: 'QUORDLE', octordle: 'OCTORDLE' }
+  };
+  setEl('funmode-title', modeNames[lang][mode]);
+
+  navigate('funmode');
+  buildFunGrids(cfg, targets);
+  buildFunKeyboard(lang, cfg.grids);
+  updateFunCurrentRow();
+}
+
+function buildFunGrids(cfg, targets) {
+  const container = document.getElementById('funmode-grids');
+  container.innerHTML = '';
+  container.className = `funmode-grids grids-${cfg.grids}`;
+
+  // Wie viele Rows initial sichtbar? Quordle: 3, Octordle: 2, Rest: alle
+  const initialVisible = cfg.grids === 8 ? 3 : cfg.grids === 4 ? 3 : cfg.attempts;
+  funState.visibleRows = initialVisible;
+
+   
+
+  for (let g = 0; g < cfg.grids; g++) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'fun-grid-wrapper';
+    wrapper.id = `fun-grid-wrapper-${g}`;
+
+    const label = document.createElement('div');
+    label.className = 'fun-grid-label';
+    label.id = `fun-grid-label-${g}`;
+    label.textContent = cfg.grids > 1 ? `#${g + 1}` : '';
+    wrapper.appendChild(label);
+
+    const grid = document.createElement('div');
+    grid.className = 'fun-grid';
+    grid.id = `fun-grid-${g}`;
+
+    for (let r = 0; r < cfg.attempts; r++) {
+      const row = document.createElement('div');
+      row.className = 'grid-row'; row.id = `fun-row-${g}-${r}`;
+      // Rows über initialVisible verstecken
+      if (r >= initialVisible) row.style.display = 'none';
+      for (let c = 0; c < funState.wordLength; c++) {
+        const tile = document.createElement('div');
+        tile.className = 'fun-tile grid-tile';
+        tile.id = `fun-tile-${g}-${r}-${c}`;
+        tile.addEventListener('click', () => handleFunTileClick(g, r, c));
+        row.appendChild(tile);
+      }
+      grid.appendChild(row);
+    }
+    wrapper.appendChild(grid);
+    container.appendChild(wrapper);
+  }
+}
+
+function restartFunMode() {
+  if (funState.isAnimating) return;
+  funState.guesses = [];
+  funState.gameOver = false;
+  setupFunMode(funState.mode);
+}
+
+function handleFunTileClick(gridIdx, rowIdx, col) {
+  if (funState.gameOver || funState.isAnimating) return;
+  if (rowIdx !== funState.guesses.length) return; // nur aktive Zeile
+  if (funState.gridDone[gridIdx]) return;
+  funState.cursorCol = col;
+  updateFunCurrentRow();
+}
+
+function buildFunKeyboard(lang, numGrids) {
+  const keyboard = document.getElementById('funmode-keyboard');
+  if (!keyboard) return;
+  keyboard.innerHTML = '';
+  const rows = lang === 'de'
+    ? [['Q','W','E','R','T','Z','U','I','O','P','Ü'],['A','S','D','F','G','H','J','K','L','Ö','Ä'],['ENTER','Y','X','C','V','B','N','M','⌫']]
+    : [['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['ENTER','Z','X','C','V','B','N','M','⌫']];
+
+  rows.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'keyboard-row';
+    row.forEach(key => {
+      const btn = document.createElement('button');
+      const isWide = key === 'ENTER' || key === '⌫';
+      btn.className = 'key fun-key' + (isWide ? ' wide' : '');
+      btn.dataset.key = key;
+      btn.id = `fun-key-${key}`;
+
+      if (isWide || numGrids === 1) {
+        btn.textContent = key === 'ENTER' ? (state.ui?.submit || 'ENTER') : key;
+      }
+
+      if (!isWide) {
+        const letterSpan = document.createElement('span');
+        letterSpan.className = 'key-letter';
+        letterSpan.textContent = key;
+        btn.innerHTML = '';
+        btn.appendChild(letterSpan);
+
+        if (numGrids > 1) {
+          btn.setAttribute('data-multi', '1');
+          const segWrap = document.createElement('div');
+          segWrap.className = `key-segments segs-${numGrids}`;
+          segWrap.id = `fun-key-segs-${key}`;
+          for (let s = 0; s < numGrids; s++) {
+            const seg = document.createElement('div');
+            seg.className = 'key-seg';
+            seg.id = `fun-seg-${key}-${s}`;
+            segWrap.appendChild(seg);
+          }
+          btn.appendChild(segWrap);
+        }
+      }
+
+      btn.addEventListener('click', () => handleFunKey(key));
+      rowEl.appendChild(btn);
+    });
+    keyboard.appendChild(rowEl);
+  });
+}
+
+function handleFunKey(key) {
+  if (funState.gameOver || funState.isAnimating) return;
+  if (key === 'ArrowLeft') { funState.cursorCol = Math.max(0, funState.cursorCol - 1); updateFunCurrentRow(); return; }
+  if (key === 'ArrowRight') { funState.cursorCol = Math.min(funState.wordLength - 1, funState.cursorCol + 1); updateFunCurrentRow(); return; }
+  if (key === '⌫' || key === 'Backspace') {
+    if (funState.currentGuess.length > 0) { funState.currentGuess = funState.currentGuess.slice(0, -1); funState.cursorCol = funState.currentGuess.length; }
+    updateFunCurrentRow(); return;
+  }
+  if (key === 'ENTER' || key === 'Enter') { submitFunGuess(); return; }
+  if (/^[A-ZÄÖÜa-zäöü]$/.test(key)) {
+    const arr = funState.currentGuess.padEnd(funState.wordLength, ' ').split('');
+    arr[funState.cursorCol] = key.toUpperCase();
+    funState.currentGuess = arr.join('').trimEnd();
+    if (funState.cursorCol < funState.wordLength - 1) funState.cursorCol++;
+    updateFunCurrentRow();
+  }
+}
+
+function updateFunCurrentRow() {
+  const rowIdx = funState.guesses.length;
+  if (rowIdx === 0 && funState.guesses.length === 0) {
+    console.trace('updateFunCurrentRow called with rowIdx=0, stack:');
+  }
+  
+  const cfg = FUN_CONFIG[funState.mode];
+  for (let g = 0; g < cfg.grids; g++) {
+    if (funState.gridDone[g]) continue;
+    for (let c = 0; c < funState.wordLength; c++) {
+      const tile = document.getElementById(`fun-tile-${g}-${rowIdx}-${c}`);
+      if (!tile) continue;
+      const char = funState.currentGuess[c] || '';
+      tile.textContent = char;
+      let cls = 'fun-tile grid-tile';
+      if (char) cls += ' filled';
+      if (c === funState.cursorCol && !funState.gameOver && !funState.isAnimating) cls += ' cursor';
+      tile.className = cls;
+    }
+  }
+}
+
+function submitFunGuess() {
+  const lang = state.lang;
+  const cfg = FUN_CONFIG[funState.mode];
+  const rowIdx = funState.guesses.length;
+  const guessRaw = funState.currentGuess || '';
+  const filled = guessRaw.replace(/ /g, '').length;
+
+  function shakeFun() {
+    for (let g = 0; g < cfg.grids; g++) {
+      if (funState.gridDone[g]) continue;
+      document.getElementById(`fun-row-${g}-${rowIdx}`)?.querySelectorAll('.fun-tile').forEach(t => {
+        t.classList.add('shake'); t.addEventListener('animationend', () => t.classList.remove('shake'), { once: true });
+      });
+    }
+  }
+
+  if (filled < funState.wordLength) { shakeFun(); showToast(state.ui.wordTooShort, 'error'); return; }
+
+  if (wordlistsReady) {
+    const validSet = lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
+    if (!validSet.has(guessRaw.toUpperCase()) && !validSet.has(guessRaw)) { shakeFun(); showToast(state.ui.invalidWord, 'error'); return; }
+  }
+
+  funState.isAnimating = true;
+  const capturedSessionId = funState.sessionId;
+
+  const guess = guessRaw.padEnd(funState.wordLength, ' ').substring(0, funState.wordLength).toUpperCase();
+  funState.currentGuess = '';
+  funState.cursorCol = 0;
+  funState.guesses.push(guess);
+
+  const results = funState.targets.map(t => evaluateGuess(guess, t));
+
+  for (let g = 0; g < cfg.grids; g++) {
+    const row = document.getElementById(`fun-row-${g}-${rowIdx}`);
+    if (row) row.style.display = '';
+  }
+  let pending = 0;
+  for (let g = 0; g < cfg.grids; g++) { if (!funState.gridDone[g]) pending++; }
+  let done = 0;
+  for (let g = 0; g < cfg.grids; g++) {
+    if (funState.gridDone[g]) continue;
+    revealFunRow(g, rowIdx, guess, results[g], () => {
+      if (funState.sessionId !== capturedSessionId) return;  // ← neu
+      done++;
+      if (done === pending) afterFunReveal(rowIdx, results);
+    });
+  }
+  setTimeout(() => {
+    const t = document.getElementById(`fun-tile-0-${rowIdx}-0`);
+    console.log('Tile nach 50ms:', t?.textContent, t?.className, t?.style.display);
+  }, 50);
+  setTimeout(() => {
+    const t = document.getElementById(`fun-tile-0-${rowIdx}-0`);
+    console.log('Tile nach 500ms:', t?.textContent, t?.className, t?.style.display);
+  }, 500);
+
+  for (let i = 0; i < funState.wordLength; i++) {
+    const delay = i * 350 + 480 + 50; // nach dem Flip des i-ten Buchstabens
+    setTimeout(() => updateFunKeySegmentForIndex(guess, results, cfg.grids, i), delay);
+  }
+}
+
+// Neue Funktion einfügen (z.B. direkt nach updateFunKeySegments):
+function updateFunKeySegmentForIndex(guess, results, numGrids, i) {
+  const priority = { correct: 3, present: 2, absent: 1 };
+  const letter = guess[i];
+  if (!letter || !letter.trim()) return;
+  if (!funState.keySegments[letter]) funState.keySegments[letter] = Array(numGrids).fill(null);
+  for (let g = 0; g < numGrids; g++) {
+    const s = results[g][i];
+    const cur = funState.keySegments[letter][g];
+    if (!cur || priority[s] > priority[cur]) {
+      funState.keySegments[letter][g] = s;
+      if (numGrids > 1) {
+        const seg = document.getElementById(`fun-seg-${letter}-${g}`);
+        if (seg) seg.className = 'key-seg ' + s;
+      } else {
+        const keyEl = document.getElementById(`fun-key-${letter}`);
+        if (keyEl) {
+          const existing = keyEl.dataset.colorStatus;
+          const kPriority = { correct: 3, present: 2, absent: 1 };
+          if (!existing || kPriority[s] > kPriority[existing]) {
+            keyEl.dataset.colorStatus = s;
+            keyEl.className = 'key fun-key' + (keyEl.classList.contains('wide') ? ' wide' : '') + ' ' + s;
+          }
+        }
+      }
+    }
+  }
+}
+
+function revealFunRow(gridIdx, rowIdx, guess, result, callback) {
+  const stagger = 350;
+  const flipMs = 480;
+  const flipHalf = flipMs / 2;
+  const wl = funState.wordLength;
+  const total = wl * stagger + flipMs + 50;
+
+  for (let c = 0; c < wl; c++) {
+    const tile = document.getElementById(`fun-tile-${gridIdx}-${rowIdx}-${c}`);
+    if (!tile) continue;
+    setTimeout(() => {
+      tile.style.transition = `transform ${flipHalf}ms ease-in`;
+      tile.style.transform = 'scaleY(0)';
+      setTimeout(() => {
+        tile.textContent = guess[c];
+        tile.className = 'fun-tile grid-tile ' + result[c];
+        tile.style.transition = `transform ${flipHalf}ms ease-out`;
+        tile.style.transform = 'scaleY(1)';
+      }, flipHalf);
+    }, c * stagger);
+  }
+
+  setTimeout(() => { callback(); }, total);
+}
+
+function updateFunKeySegments(guess, results, numGrids) {
+  const priority = { correct: 3, present: 2, absent: 1 };
+  for (let i = 0; i < funState.wordLength; i++) {
+    const letter = guess[i];
+    if (!letter || !letter.trim()) continue;
+    if (!funState.keySegments[letter]) funState.keySegments[letter] = Array(numGrids).fill(null);
+
+    for (let g = 0; g < numGrids; g++) {
+      const s = results[g][i];
+      const cur = funState.keySegments[letter][g];
+      if (!cur || priority[s] > priority[cur]) {
+        funState.keySegments[letter][g] = s;
+        if (numGrids > 1) {
+          const seg = document.getElementById(`fun-seg-${letter}-${g}`);
+          if (seg) seg.className = 'key-seg ' + s;
+        } else {
+          const keyEl = document.getElementById(`fun-key-${letter}`);
+          if (keyEl) {
+            const kPriority = { correct: 3, present: 2, absent: 1 };
+            const existing = keyEl.dataset.colorStatus;
+            if (!existing || kPriority[s] > kPriority[existing]) {
+              keyEl.dataset.colorStatus = s;
+              keyEl.className = 'key fun-key' + (keyEl.classList.contains('wide') ? ' wide' : '') + ' ' + s;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function afterFunReveal(rowIdx, results) {
+   funState.isAnimating = false;
+  const lang = state.lang;
+
+  const cfg = FUN_CONFIG[funState.mode];
+  if ((cfg.grids === 4 || cfg.grids === 8) && funState.visibleRows < cfg.attempts) {
+    funState.visibleRows++;
+    for (let g = 0; g < cfg.grids; g++) {
+      const nextRow = document.getElementById(`fun-row-${g}-${funState.visibleRows - 1}`);
+      if (nextRow) nextRow.style.display = '';
+    }
+  }
+
+  for (let g = 0; g < cfg.grids; g++) {
+    if (funState.gridDone[g]) continue;
+    const won = results[g].every(r => r === 'correct');
+    if (won || rowIdx + 1 >= cfg.attempts) {
+      funState.gridDone[g] = true;
+      const wrapper = document.getElementById(`fun-grid-wrapper-${g}`);
+      const label = document.getElementById(`fun-grid-label-${g}`);
+      if (won) {
+        if (wrapper) wrapper.classList.add('grid-solved');
+        if (label) label.textContent = '✓ ' + funState.targets[g];
+      } else {
+        if (wrapper) wrapper.classList.add('grid-failed');
+        if (label) label.textContent = '✕ ' + funState.targets[g];
+      }
+    }
+  }
+
+  const allDone = funState.gridDone.every(d => d);
+  if (allDone || rowIdx + 1 >= cfg.attempts) {
+    funState.gameOver = true;
+    setTimeout(() => {
+      const solvedCount = funState.targets.filter(t => funState.guesses.includes(t)).length;
+      const allWon = solvedCount === cfg.grids;
+      const de = lang === 'de';
+      let msg;
+      if (cfg.grids === 1) {
+        msg = allWon
+          ? (de ? `🎉 Gelöst in ${funState.guesses.length} Versuch${funState.guesses.length === 1 ? '' : 'en'}!` : `🎉 Solved in ${funState.guesses.length} attempt${funState.guesses.length === 1 ? '' : 's'}!`)
+          : (de ? `Das Wort war: ${funState.targets[0]}` : `The word was: ${funState.targets[0]}`);
+      } else {
+        msg = allWon
+          ? (de ? `🎉 Alle ${cfg.grids} Wörter gefunden!` : `🎉 All ${cfg.grids} words found!`)
+          : (de ? `${solvedCount}/${cfg.grids} Wörter: ` : `${solvedCount}/${cfg.grids} words: `)
+            + funState.targets.map((t) => (funState.guesses.includes(t) ? '✓' : '✕') + ' ' + t).join('  ');
+      }
+      showToast(msg, allWon ? 'success' : 'info', 8000);
+    }, 600);
+  } else {
+    updateFunCurrentRow();
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('page-funmode')?.classList.contains('active')) return;
+  if (document.getElementById('modal-overlay').classList.contains('open')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Backspace') { handleFunKey('Backspace'); return; }
+  if (e.key === 'Enter') { handleFunKey('Enter'); return; }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); handleFunKey('ArrowLeft'); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); handleFunKey('ArrowRight'); return; }
+  if (/^[a-zA-ZäöüÄÖÜ]$/.test(e.key)) handleFunKey(e.key.toUpperCase());
+});
+
+function updateDrawerLanguage(lang) {
+  const de = lang === 'de';
+  setEl('drawer-title', de ? 'SPIELMODI' : 'GAME MODES');
+  setEl('drawer-label-daily', de ? 'Täglich' : 'Daily');
+  setEl('drawer-label-fun', de ? 'Spielwiese' : 'Playground');
+  setEl('drawer-name-daily', de ? 'Wördle' : 'Wordle');
+  setEl('drawer-desc-daily', de ? 'Wort des Tages' : 'Word of the Day');
+  setEl('drawer-name-solo', de ? 'Wördle' : 'Wordle');
+  setEl('drawer-desc-solo', de ? '1 Wort · 6 Versuche · Ungewertet' : '1 Word · 6 Attempts · Unranked');
+  setEl('drawer-desc-dordle', de ? '2 Wörter · 7 Versuche' : '2 Words · 7 Attempts');
+  setEl('drawer-desc-quordle', de ? '4 Wörter · 9 Versuche' : '4 Words · 9 Attempts');
+  setEl('drawer-desc-octordle', de ? '8 Wörter · 13 Versuche' : '8 Words · 13 Attempts');
+  setEl('funmode-back-label', de ? 'Zurück' : 'Back');
+  setEl('funmode-restart-label', de ? 'Neu' : 'New');
+  if (document.getElementById('page-funmode')?.classList.contains('active')) {
+    const cfg = FUN_CONFIG[funState.mode];
+    // Titel aktualisieren
+    const modeNames = {
+      de: { solo: 'WÖRDLE', dordle: 'DORDLE', quordle: 'QUORDLE', octordle: 'OCTORDLE' },
+      en: { solo: 'WORDLE', dordle: 'DORDLE', quordle: 'QUORDLE', octordle: 'OCTORDLE' }
+    };
+    setEl('funmode-title', modeNames[lang][funState.mode]);
+    buildFunKeyboard(lang, cfg.grids);
+    // Segment-Farben wiederherstellen
+    for (const [letter, segs] of Object.entries(funState.keySegments)) {
+      for (let g = 0; g < cfg.grids; g++) {
+        if (cfg.grids > 1) {
+          const seg = document.getElementById(`fun-seg-${letter}-${g}`);
+          if (seg && segs[g]) seg.className = 'key-seg ' + segs[g];
+        }
+      }
+    }
+  }
+}
 
 loadData();

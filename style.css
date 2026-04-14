@@ -159,7 +159,7 @@ body.is-offline .keyboard {
     .page { display: none; flex: 1; }
     .page.active { display: flex; flex-direction: column; }
 
-    #page-home { align-items: center; justify-content: center; padding: 16px 24px; flex: 1; }
+    #page-home { align-items: center; justify-content: center; padding: 16px 24px; flex: 1; min-height: 0;}
 
     .hero { text-align: center; max-width: 560px; animation: fadeUp 0.6s ease both; }
 
@@ -377,14 +377,17 @@ body.is-offline .keyboard {
 
     @media (max-width: 600px) {
   /* Header */
-  header { padding: 10px 12px; gap: 8px; }
-  .logo { font-size: 1.1rem; letter-spacing: 0.15em; }
-  .header-right { gap: 6px; }
-  #header-auth { gap: 6px; }
-  .btn { padding: 7px 12px; font-size: 0.78rem; }
-  .btn-icon { padding: 7px; }
-  .lang-btn { padding: 4px 8px; font-size: 0.72rem; }
-  #header-countdown { font-size: 0.75rem; }
+  header { padding: 8px 10px; gap: 6px; }
+  .header-left { gap: 8px; }
+  .logo { font-size: 0.95rem; letter-spacing: 0.1em; }
+  .btn-hamburger { width: 32px; height: 32px; font-size: 1rem; }
+  .header-right { gap: 4px; }
+  #header-auth { gap: 4px; }
+  .btn { padding: 5px 9px; font-size: 0.72rem; }
+  .btn-icon { padding: 5px; font-size: 0.85rem; }
+  .lang-switcher { padding: 3px; gap: 4px; }
+  .lang-btn { padding: 3px 7px; font-size: 0.68rem; }
+  #header-countdown { font-size: 0.7rem; display: none; }
 
   /* Game */
   #page-game { padding: 16px 8px; gap: 16px; }
@@ -411,6 +414,12 @@ body.is-offline .keyboard {
 }
 
 @media (max-width: 380px) {
+  header { padding: 6px 8px; }
+  .logo { font-size: 0.85rem; }
+  .btn { padding: 4px 7px; font-size: 0.68rem; }
+  .lang-btn { padding: 2px 5px; font-size: 0.63rem; }
+  .btn-icon { padding: 4px; }
+  
   .grid-tile { width: 46px; height: 46px; font-size: 1.15rem; }
   .key { min-width: 28px; height: 42px; font-size: 0.7rem; }
   .key.wide { min-width: 42px; }
@@ -431,7 +440,7 @@ body.is-offline .keyboard {
       z-index: 10;
       border-top: 1px solid var(--surface-border);
       background: var(--surface);
-      margin-top: 60px;
+      margin-top: auto;
       padding: 32px 24px;
     }
     .footer-inner { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 16px; }
@@ -442,6 +451,12 @@ body.is-offline .keyboard {
     .footer-nav a:hover { color: var(--primary); }
     .footer-copy { color: var(--text-muted); font-size: 0.78rem; opacity: 0.6; letter-spacing: 0.02em; }
 
+    @media (max-width: 600px) {
+  #main-footer {
+    margin-top: 0;
+    padding: 20px 16px;
+  }
+}
     /* ===== LEGAL PAGES ===== */
     .legal-container { max-width: 700px; margin: 0 auto; padding: 32px 24px 60px; animation: fadeUp 0.4s ease; }
     .legal-back { color: var(--text-muted); font-size: 0.9rem; cursor: pointer; margin-bottom: 28px; display: inline-flex; align-items: center; gap: 6px; transition: color 0.2s; }
@@ -489,3 +504,222 @@ body.is-offline .keyboard {
 /* ── Stat columns ─────────────────────────────────────────── */
 .lb-stat-hi { font-family: var(--font-mono); font-size: 0.95rem; color: var(--primary); font-weight: 700; min-width: 60px; text-align: right; }
 .lb-stat-lo { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); min-width: 60px; text-align: right; }
+
+/* ===== HEADER LEFT ===== */
+.header-left { display: flex; align-items: center; gap: 12px; }
+
+.btn-hamburger {
+  background: transparent;
+  border: 1px solid var(--surface-border);
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  width: 40px; height: 40px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; flex-shrink: 0;
+}
+.btn-hamburger:hover { color: var(--primary); border-color: var(--primary); background: rgba(232,88,10,0.06); }
+
+/* ===== SIDE DRAWER ===== */
+#drawer-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+  z-index: 299; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+#drawer-overlay.open { opacity: 1; pointer-events: all; }
+
+#side-drawer {
+  position: fixed; top: 0; left: 0;
+  width: 280px; height: 100vh;
+  background: var(--surface); border-right: 1px solid var(--surface-border);
+  z-index: 300; transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+#side-drawer.open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,0.5); }
+
+.drawer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 20px 16px; border-bottom: 1px solid var(--surface-border);
+}
+.drawer-title { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.25em; color: var(--text-muted); }
+.drawer-close { background: transparent; border: none; color: var(--text-muted); font-size: 1rem; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: color 0.2s; }
+.drawer-close:hover { color: var(--text); }
+
+.drawer-section-label {
+  font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-muted); padding: 16px 20px 6px; opacity: 0.6;
+}
+.drawer-item {
+  display: flex; align-items: center; gap: 14px; padding: 14px 20px;
+  background: transparent; border: none; cursor: pointer; width: 100%; text-align: left;
+  transition: background 0.15s; border-left: 3px solid transparent;
+}
+.drawer-item:hover { background: var(--surface-light); }
+.drawer-item.active { border-left-color: var(--primary); background: rgba(232,88,10,0.06); }
+.drawer-item-icon { font-size: 1.3rem; flex-shrink: 0; }
+.drawer-item-text { display: flex; flex-direction: column; gap: 2px; }
+.drawer-item-name { font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); letter-spacing: 0.03em; }
+.drawer-item-desc { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); }
+
+/* ===== FUN MODE PAGE ===== */
+#page-funmode {
+  flex-direction: column; align-items: center;
+  padding: 16px 12px 24px; gap: 16px; overflow-y: auto;
+}
+.funmode-header {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; max-width: 900px; gap: 8px;
+}
+.funmode-back { font-size: 0.8rem; padding: 7px 14px; }
+.funmode-title {
+  font-family: var(--font-mono); font-size: 0.9rem; font-weight: 700;
+  letter-spacing: 0.2em; color: var(--primary); text-align: center;
+}
+
+/* ===== FUN MODE GRIDS ===== */
+.funmode-grids { display: grid; gap: 16px; width: 100%; max-width: 900px; justify-items: center; }
+.funmode-grids.grids-1 { grid-template-columns: 1fr; max-width: 380px; }
+.funmode-grids.grids-2 { grid-template-columns: repeat(2, 1fr); max-width: 680px; gap: 16px; }
+.funmode-grids.grids-4 { grid-template-columns: repeat(2, 1fr); max-width: 680px; }
+.funmode-grids.grids-8 { grid-template-columns: repeat(4, 1fr); max-width: 900px; }
+
+.fun-grid-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity 0.3s; }
+.fun-grid-wrapper.grid-solved { opacity: 0.7; }
+.fun-grid-wrapper.grid-failed { opacity: 0.5; }
+.fun-grid-label { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--text-muted); height: 16px; transition: color 0.3s; }
+.fun-grid-wrapper.grid-solved .fun-grid-label { color: var(--correct); }
+.fun-grid-wrapper.grid-failed .fun-grid-label { color: #ff6b6b; }
+.fun-grid { display: flex; flex-direction: column; gap: 4px; }
+
+.grids-1 .fun-tile { width: 62px; height: 62px; font-size: 1.6rem; }
+.grids-2 .fun-tile { width: 54px; height: 54px; font-size: 1.4rem; }
+.grids-4 .fun-tile { width: 48px; height: 48px; font-size: 1.2rem; }
+.grids-8 .fun-tile { width: 38px; height: 38px; font-size: 1rem; border-radius: 5px; }
+
+/* ===== FUN KEYBOARD ===== */
+#funmode-keyboard { max-width: 600px; width: 100%; }
+
+.fun-key { position: relative; flex-direction: column; gap: 2px; padding-bottom: 4px; min-height: 58px; }
+.key-letter { font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; line-height: 1; pointer-events: none; }
+
+.key-segments { display: flex; gap: 2px; width: 100%; padding: 0 4px; pointer-events: none; }
+.key-seg { flex: 1; height: 4px; border-radius: 2px; background:  #2a2320; transition: background 0.2s; }
+.key-seg.correct { background: var(--correct); box-shadow: 0 0 4px var(--correct-glow); }
+.key-seg.present { background: var(--present); box-shadow: 0 0 4px var(--present-glow); }
+.key-seg.absent  { background: #3a3330; }
+
+/* Multi-grid: don't color key bg, use segments */
+.fun-key[data-multi="1"].correct,
+.fun-key[data-multi="1"].present,
+.fun-key[data-multi="1"].absent {
+  background: var(--surface-light); border-color: var(--surface-border);
+  color: var(--text); opacity: 1; cursor: pointer; box-shadow: none;
+}
+/* Solo: normal wordle coloring */
+.fun-key.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 2px 10px var(--correct-glow); }
+.fun-key.present { background: var(--present); border-color: var(--present); color: #fff; }
+.fun-key.absent  { background: #1a1715; border-color: #2a2420; color: #665c54; opacity: 0.55; cursor: default; }
+
+/* Dordle: 1 Reihe, 2 Segmente nebeneinander */
+/* ===== SEGMENT LAYOUTS ===== */
+
+/* Dordle: 1×2 nebeneinander */
+.segs-2 { flex-direction: row; height: 5px; }
+.segs-2 .key-seg { height: 5px; }
+
+/* Quordle: 2×2 Grid */
+.segs-4 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: calc(100% - 8px);
+  height: 12px;
+  padding: 0;
+}
+.segs-4 .key-seg { height: auto; border-radius: 2px; }
+
+/* Octordle: 4×2 Grid (Desktop) */
+.segs-8 {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  width: calc(100% - 8px);
+  height: 12px;
+  padding: 0;
+}
+.segs-8 .key-seg { height: auto; border-radius: 1px; }
+
+/* ===== SEGMENT FARBEN ===== */
+.key-seg {
+  background: #2a2320;        /* unbenutzt: gedimmt */
+  transition: background 0.2s;
+}
+.key-seg.correct { background: var(--correct); box-shadow: 0 0 4px var(--correct-glow); }
+.key-seg.present { background: var(--present); box-shadow: 0 0 4px var(--present-glow); }
+.key-seg.absent  { background: #111010; }   /* absent: deutlich dunkler */
+
+/* ===== MOBILE FUN MODE ===== */
+@media (max-width: 600px) {
+  #page-funmode { padding: 10px 6px 16px; gap: 10px; }
+
+  /* Dordle */
+  .funmode-grids.grids-2 { gap: 6px; max-width: 100%; }
+  .grids-2 .fun-tile { width: 32px; height: 32px; font-size: 0.82rem; border-radius: 5px; }
+  .grids-2 .fun-grid { gap: 3px; }
+
+  /* Quordle */
+  .funmode-grids.grids-4 { gap: 6px; max-width: 100%; }
+  .grids-4 .fun-tile { width: 32px; height: 32px; font-size: 0.82rem; border-radius: 5px; }
+  .grids-4 .fun-grid { gap: 3px; }
+  /* Octordle: 2 Spalten × 4 Zeilen auf Mobile */
+  .funmode-grids.grids-8 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-width: 100%;
+  }
+  .grids-8 .fun-tile { width: 30px; height: 30px; font-size: 0.78rem; border-radius: 4px; }
+  .grids-8 .fun-grid { gap: 2px; }
+
+  /* Keyboard schmaler für alle Fun-Modi */
+  #funmode-keyboard .key { min-width: 28px; height: 46px; padding: 0 2px; }
+  #funmode-keyboard .key.wide { min-width: 40px; font-size: 0.65rem; }
+  #funmode-keyboard .keyboard-row { gap: 3px; }
+  .fun-key { min-height: 46px; padding-bottom: 3px; }
+  .key-letter { font-size: 0.72rem; }
+
+  /* Octordle Segmente auf Mobile: 2×4 statt 4×2 */
+  .segs-8 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-rows: repeat(4, 1fr) !important;
+    height: 18px !important;
+  }
+}
+
+@media (max-width: 400px) {
+  /* Dordle */
+  .grids-2 .fun-tile { width: 26px; height: 26px; font-size: 0.7rem; }
+  .funmode-grids.grids-2 { gap: 4px; }
+
+  /* Quordle */
+  .grids-4 .fun-tile { width: 26px; height: 26px; font-size: 0.7rem; }
+  .funmode-grids.grids-4 { gap: 4px; }
+
+  /* Octordle */
+  .grids-8 .fun-tile { width: 24px; height: 24px; font-size: 0.65rem; }
+  #funmode-keyboard .key { min-width: 22px; height: 40px; }
+  #funmode-keyboard .key.wide { min-width: 34px; }
+  .fun-key { min-height: 40px; }
+}
+
+@media (max-width: 360px) {
+  .grids-2 .fun-tile { width: 25px; height: 25px; font-size: 0.68rem; }
+  .grids-4 .fun-tile { width: 23px; height: 23px; font-size: 0.63rem; }
+  .grids-8 .fun-tile { width: 21px; height: 21px; font-size: 0.58rem; }
+  #funmode-keyboard .key { min-width: 20px; height: 38px; }
+  #funmode-keyboard .key.wide { min-width: 30px; font-size: 0.58rem; }
+  .funmode-grids { gap: 4px; }
+}

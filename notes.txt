@@ -1,10 +1,11 @@
 Fixes:
 - (emojis raus)
-- white mode
-- registrieren - passwort zurücksetzen / email bestätigen
-- internet fix, wenn nicht geht nachricht das nciht gespiechert
+- internet wenn nicht geht nachricht das nciht gespiechert wird nicht angezeigt.
+- zeit bis winpop up verkürzen
+- abstand von spiel zur tastatur bisschen größer
+- bei handy modus / octordle footer nicht so weit unten
 
 Ideen:
-- fun mode geht nicht in die statisikien
 - freunde adden -> deren profile ansehen
-- dordle mdous...
+- registrieren - passwort zurücksetzen / email bestätigen
+- white mode

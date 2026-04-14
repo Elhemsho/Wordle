@@ -24,7 +24,10 @@
 
   <!-- ===== HEADER ===== -->
   <header>
-    <div class="logo" onclick="navigate('home')" id="logo-text">WÖRDLE</div>
+    <div class="header-left">
+      <button type="button" class="btn-hamburger" id="btn-hamburger" onclick="toggleDrawer()" title="Modi">☰</button>
+      <div class="logo" onclick="navigate('home')" id="logo-text">WÖRDLE</div>
+    </div>
     <div class="header-right">
       <div class="lang-switcher">
         <button class="lang-btn active" data-lang="de" onclick="switchLanguage('de')">🇩🇪 DE</button>
@@ -256,7 +259,64 @@
     </div>
   </div>
 
+  <!-- FUN MODE PAGE -->
+<div id="page-funmode" class="page">
+  <div class="funmode-header">
+    <button type="button" class="btn btn-ghost funmode-back" onclick="navigate('home')">← <span class="funmode-back-label">Zurück</span></button>
+    <div class="funmode-title" id="funmode-title">WORDLE UNRANKED</div>
+    <button type="button" class="btn btn-ghost" onclick="restartFunMode()" id="btn-funmode-restart">↺ <span id="funmode-restart-label">Neu</span></button>
+  </div>
+  <div id="funmode-grids" class="funmode-grids"></div>
+  <div class="keyboard" id="funmode-keyboard"></div>
+</div>
+
 </div><!-- end #app -->
+
+<!-- SIDE DRAWER -->
+<div id="drawer-overlay" onclick="closeDrawer()"></div>
+<div id="side-drawer">
+  <div class="drawer-header">
+    <span class="drawer-title" id="drawer-title">SPIELMODI</span>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-section-label" id="drawer-label-daily">Täglich</div>
+  <button class="drawer-item" id="drawer-item-daily" onclick="closeDrawer(); startGame();">
+    <span class="drawer-item-icon">📅</span>
+    <div class="drawer-item-text">
+      <span class="drawer-item-name" id="drawer-name-daily">Wördle</span>
+      <span class="drawer-item-desc" id="drawer-desc-daily">Wort des Tages</span>
+    </div>
+  </button>
+  <div class="drawer-section-label" id="drawer-label-fun">Spielwiese</div>
+  <button class="drawer-item" onclick="closeDrawer(); setupFunMode('solo');">
+    <span class="drawer-item-icon">🎮</span>
+    <div class="drawer-item-text">
+      <span class="drawer-item-name" id="drawer-name-solo">Wördle</span>
+      <span class="drawer-item-desc" id="drawer-desc-solo">1 Wort · 6 Versuche</span>
+    </div>
+  </button>
+  <button class="drawer-item" onclick="closeDrawer(); setupFunMode('dordle');">
+    <span class="drawer-item-icon">⚔️</span>
+    <div class="drawer-item-text">
+      <span class="drawer-item-name">Dordle</span>
+      <span class="drawer-item-desc" id="drawer-desc-dordle">2 Wörter · 7 Versuche</span>
+    </div>
+  </button>
+  <button class="drawer-item" onclick="closeDrawer(); setupFunMode('quordle');">
+    <span class="drawer-item-icon">🔲</span>
+    <div class="drawer-item-text">
+      <span class="drawer-item-name">Quordle</span>
+      <span class="drawer-item-desc" id="drawer-desc-quordle">4 Wörter · 9 Versuche</span>
+    </div>
+  </button>
+  <button class="drawer-item" onclick="closeDrawer(); setupFunMode('octordle');">
+    <span class="drawer-item-icon">🐙</span>
+    <div class="drawer-item-text">
+      <span class="drawer-item-name">Octordle</span>
+      <span class="drawer-item-desc" id="drawer-desc-octordle">8 Wörter · 13 Versuche</span>
+    </div>
+  </button>
+</div>
 
 <!-- ===== FOOTER ===== -->
 <footer id="main-footer">
@@ -346,6 +406,7 @@
       <button class="btn btn-ghost" onclick="shareResult()" id="btn-share">Teilen</button>
     </div>
   </div>
+  <div id="offline-warning-banner" style="display:none; background: rgba(232,88,10,0.12); border: 1px solid var(--primary); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: var(--primary); margin-bottom: 16px; text-align: center;"></div>
 </div>
 
 <!-- ===== TOAST ===== -->
