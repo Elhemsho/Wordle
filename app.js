@@ -344,8 +344,19 @@ function startGame() {
 function updateHeaderAuth() {
   const authDiv = document.getElementById('header-auth');
   const userDiv = document.getElementById('header-user');
-  if (state.currentUser) { authDiv.style.display = 'none'; userDiv.style.display = 'flex'; }
-  else { authDiv.style.display = 'flex'; userDiv.style.display = 'none'; }
+  const langSwitcher = document.querySelector('.lang-switcher'); // Wählt den Sprachumschalter aus
+
+  if (state.currentUser) {
+    // Wenn eingeloggt: Login-Buttons weg, User-Profil und Sprachwahl da
+    authDiv.style.display = 'none';
+    userDiv.style.display = 'flex';
+    if (langSwitcher) langSwitcher.style.display = 'flex'; 
+  } else {
+    // Wenn nicht eingeloggt: Login-Buttons da, User-Profil und Sprachwahl weg
+    authDiv.style.display = 'flex';
+    userDiv.style.display = 'none';
+    if (langSwitcher) langSwitcher.style.display = 'none'; 
+  }
 }
 
 function openModal(type) {
