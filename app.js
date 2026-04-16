@@ -176,6 +176,7 @@ function applyLanguage(lang) {
   setEl('switch-to-register', ' ' + state.ui.register);
   setEl('has-account-text', state.ui.hasAccount);
   setEl('switch-to-login', ' ' + state.ui.login);
+  setEl('badge-section-title', lang === 'de' ? 'Abzeichen' : 'Badges');
   setEl('stat-streak-label', state.ui.currentStreak + ' 🔥');
   setEl('stat-best-streak-label', state.ui.longestStreak + ' 🏆');
   setEl('stat-played-label', state.ui.gamesPlayed);
@@ -749,6 +750,11 @@ async function updateStats(won) {
 if (s && s.last_played_date === yesterday.toDateString()) streak++;
       else streak = 1;
       bestStreak = Math.max(bestStreak, streak);
+      checkAndAwardBadges({
+  mode: 'daily',
+  won,
+  guesses: won ? state.guesses.length : 7
+});
     } else { streak = 0; totalAttempts += 6;}
 
     // ✅ FIX: last_played_date immer auf heute setzen (auch bei Niederlage)
@@ -1551,8 +1557,13 @@ if ((cfg.grids === 4 || cfg.grids === 8) && funState.visibleRows < cfg.attempts)
     setTimeout(() => {
       const solvedCount = funState.targets.filter(t => funState.guesses.includes(t)).length;
       const allWon = solvedCount === cfg.grids;
+      
       const de = lang === 'de';
       let msg;
+      if (allWon && state.currentUser) {
+  recordFunWin(funState.mode);
+  checkAndAwardBadges({ mode: funState.mode, won: true });
+}
       if (cfg.grids === 1) {
         msg = allWon
           ? (de ? `🎉 Gelöst in ${funState.guesses.length} Versuch${funState.guesses.length === 1 ? '' : 'en'}!` : `🎉 Solved in ${funState.guesses.length} attempt${funState.guesses.length === 1 ? '' : 's'}!`)
@@ -1617,4 +1628,300 @@ function updateDrawerLanguage(lang) {
   }
 }
 
+// ============================================================
+//  BADGE SYSTEM
+// ============================================================
+
+const BADGE_DEFS = [
+  // --- Upgradeable: Siege gesamt (DE+EN zusammen) ---
+  { id: 'wins_bronze', group: 'wins', tier: 'bronze', emoji: '🏅', name: { de: 'Siegesläufer', en: 'Winner' },        desc: { de: '10 Siege gesamt',   en: '10 total wins' },    threshold: 10 },
+  { id: 'wins_silver', group: 'wins', tier: 'silver', emoji: '🥈', name: { de: 'Siegesläufer', en: 'Winner' },        desc: { de: '50 Siege gesamt',   en: '50 total wins' },    threshold: 50 },
+  { id: 'wins_gold',   group: 'wins', tier: 'gold',   emoji: '🥇', name: { de: 'Siegesläufer', en: 'Winner' },        desc: { de: '100 Siege gesamt',  en: '100 total wins' },   threshold: 100 },
+
+  // --- Upgradeable: Längste Streak ---
+  { id: 'streak_bronze', group: 'streak', tier: 'bronze', emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },  desc: { de: '7 Tage Serie',      en: '7-day streak' },     threshold: 7 },
+  { id: 'streak_silver', group: 'streak', tier: 'silver', emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },  desc: { de: '30 Tage Serie',     en: '30-day streak' },    threshold: 30 },
+  { id: 'streak_gold',   group: 'streak', tier: 'gold',   emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },  desc: { de: '100 Tage Serie',    en: '100-day streak' },   threshold: 100 },
+
+  // --- Upgradeable: Dordle ---
+  { id: 'dordle_bronze', group: 'dordle', tier: 'bronze', emoji: '⚔️', name: { de: 'Doppelkämpfer', en: 'Duelist' },  desc: { de: '5× Dordle gewonnen',  en: '5× Dordle wins' },  threshold: 5 },
+  { id: 'dordle_silver', group: 'dordle', tier: 'silver', emoji: '⚔️', name: { de: 'Doppelkämpfer', en: 'Duelist' },  desc: { de: '25× Dordle gewonnen', en: '25× Dordle wins' }, threshold: 25 },
+  { id: 'dordle_gold',   group: 'dordle', tier: 'gold',   emoji: '⚔️', name: { de: 'Doppelkämpfer', en: 'Duelist' },  desc: { de: '50× Dordle gewonnen', en: '50× Dordle wins' }, threshold: 50 },
+
+  // --- Upgradeable: Quordle ---
+  { id: 'quordle_bronze', group: 'quordle', tier: 'bronze', emoji: '🔲', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '5× Quordle gewonnen',  en: '5× Quordle wins' },  threshold: 5 },
+  { id: 'quordle_silver', group: 'quordle', tier: 'silver', emoji: '🔲', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '25× Quordle gewonnen', en: '25× Quordle wins' }, threshold: 25 },
+  { id: 'quordle_gold',   group: 'quordle', tier: 'gold',   emoji: '🔲', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '50× Quordle gewonnen', en: '50× Quordle wins' }, threshold: 50 },
+
+  // --- Upgradeable: Octordle ---
+  { id: 'octordle_bronze', group: 'octordle', tier: 'bronze', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '5× Octordle gewonnen',  en: '5× Octordle wins' },  threshold: 5 },
+  { id: 'octordle_silver', group: 'octordle', tier: 'silver', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '25× Octordle gewonnen', en: '25× Octordle wins' }, threshold: 25 },
+  { id: 'octordle_gold',   group: 'octordle', tier: 'gold',   emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '50× Octordle gewonnen', en: '50× Octordle wins' }, threshold: 50 },
+
+  // --- Einmalig: Glückspilz (1 Versuch) ---
+  { id: 'lucky',   group: 'lucky',   tier: 'gold', emoji: '🍀', name: { de: 'Glückspilz',    en: 'Lucky Guess' },   desc: { de: 'Daily in 1 Versuch gelöst',           en: 'Solved daily in 1 attempt' } },
+
+  // --- Einmalig: Nachteule ---
+  { id: 'owl',     group: 'owl',     tier: 'gold', emoji: '🦉', name: { de: 'Nachteule',      en: 'Night Owl' },     desc: { de: 'Daily 5 Min vor Mitternacht gelöst',  en: 'Solved daily 5 min before midnight' } },
+
+  // --- Einmalig: Frühaufsteher ---
+  { id: 'bird',    group: 'bird',    tier: 'gold', emoji: '🐦', name: { de: 'Frühaufsteher',  en: 'Early Bird' },    desc: { de: 'Daily 10 Min nach Mitternacht gelöst', en: 'Solved daily 10 min after midnight' } },
+
+  // --- Einmalig: Alles an einem Tag ---
+  { id: 'allday',  group: 'allday',  tier: 'gold', emoji: '👑', name: { de: 'König des Tages', en: 'Day King' },      desc: { de: 'DE+EN Daily + Dordle + Quordle + Octordle an einem Tag', en: 'DE+EN Daily + Dordle + Quordle + Octordle in one day' } },
+];
+
+// Alle Badge-IDs als Set für schnellen Lookup
+const BADGE_ID_SET = new Set(BADGE_DEFS.map(b => b.id));
+
+// Queue für Popups (falls mehrere auf einmal)
+let badgePopupQueue = [];
+let badgePopupActive = false;
+
+// ---- Hilfsfunktionen ----
+
+function getBadgeDef(id) { return BADGE_DEFS.find(b => b.id === id); }
+
+async function loadEarnedBadges(userId) {
+  try {
+    const rows = await sbFetch(`user_badges?user_id=eq.${userId}&select=badge_id`);
+    return new Set((rows || []).map(r => r.badge_id));
+  } catch { return new Set(); }
+}
+
+async function awardBadge(userId, badgeId) {
+  // Prüfe ob schon vorhanden (lokal + remote)
+  try {
+    await sbFetch('user_badges', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, badge_id: badgeId }),
+      prefer: 'return=minimal',
+      headers: { 'Prefer': 'return=minimal', 'on-conflict': 'user_id,badge_id' }
+    });
+  } catch(e) {
+    if (e.message && e.message.includes('unique')) return false; // schon da
+    console.warn('Badge award error:', e);
+    return false;
+  }
+  return true;
+}
+
+function queueBadgePopup(badgeDef) {
+  badgePopupQueue.push(badgeDef);
+  if (!badgePopupActive) showNextBadgePopup();
+}
+
+function showNextBadgePopup() {
+  if (badgePopupQueue.length === 0) { badgePopupActive = false; return; }
+  badgePopupActive = true;
+  const def = badgePopupQueue.shift();
+  const lang = state.lang;
+  document.getElementById('badge-popup-emoji').textContent = def.emoji;
+  document.getElementById('badge-popup-name').textContent = def.name[lang];
+  document.getElementById('badge-popup-desc').textContent = def.desc[lang];
+  // "Neues Abzeichen!" Text
+  document.querySelector('.badge-popup-new').textContent = lang === 'de' ? 'Neues Abzeichen! 🎊' : 'New Badge! 🎊';
+  document.querySelector('.badge-popup .btn').textContent = lang === 'de' ? 'Cool! 🎉' : 'Awesome! 🎉';
+  document.getElementById('badge-popup-overlay').classList.add('open');
+}
+
+function closeBadgePopup() {
+  document.getElementById('badge-popup-overlay').classList.remove('open');
+  setTimeout(() => showNextBadgePopup(), 300);
+}
+
+// ---- Haupt-Check-Funktion ----
+
+async function checkAndAwardBadges(context = {}) {
+  if (!state.currentUser) return;
+  const userId = state.currentUser.id;
+  const lang = state.lang;
+  const de = lang === 'de';
+
+  const earned = await loadEarnedBadges(userId);
+
+  // Alle Stats laden (beide Sprachen für wins/streak)
+  let statsDE, statsEN;
+  try {
+    const deRows = await sbFetch(`stats?user_id=eq.${userId}&lang=eq.de`);
+    const enRows = await sbFetch(`stats?user_id=eq.${userId}&lang=eq.en`);
+    statsDE = deRows && deRows.length > 0 ? deRows[0] : null;
+    statsEN = enRows && enRows.length > 0 ? enRows[0] : null;
+  } catch { return; }
+
+  const totalWins = (statsDE?.won || 0) + (statsEN?.won || 0);
+  const bestStreak = Math.max(statsDE?.best_streak || 0, statsEN?.best_streak || 0);
+
+  // Fun wins laden
+  let funWins = { dordle: 0, quordle: 0, octordle: 0 };
+  try {
+    const fw = await sbFetch(`fun_wins?user_id=eq.${userId}&select=mode`);
+    (fw || []).forEach(r => { if (funWins[r.mode] !== undefined) funWins[r.mode]++; });
+  } catch {}
+
+  const newBadges = [];
+
+  async function tryAward(badgeId) {
+    if (earned.has(badgeId)) return;
+    const ok = await awardBadge(userId, badgeId);
+    if (ok) {
+      earned.add(badgeId);
+      const def = getBadgeDef(badgeId);
+      if (def) newBadges.push(def);
+    }
+  }
+
+  // Siege
+  if (totalWins >= 10)  await tryAward('wins_bronze');
+  if (totalWins >= 50)  await tryAward('wins_silver');
+  if (totalWins >= 100) await tryAward('wins_gold');
+
+  // Streak
+  if (bestStreak >= 7)   await tryAward('streak_bronze');
+  if (bestStreak >= 30)  await tryAward('streak_silver');
+  if (bestStreak >= 100) await tryAward('streak_gold');
+
+  // Dordle
+  if (funWins.dordle >= 5)  await tryAward('dordle_bronze');
+  if (funWins.dordle >= 25) await tryAward('dordle_silver');
+  if (funWins.dordle >= 50) await tryAward('dordle_gold');
+
+  // Quordle
+  if (funWins.quordle >= 5)  await tryAward('quordle_bronze');
+  if (funWins.quordle >= 25) await tryAward('quordle_silver');
+  if (funWins.quordle >= 50) await tryAward('quordle_gold');
+
+  // Octordle
+  if (funWins.octordle >= 5)  await tryAward('octordle_bronze');
+  if (funWins.octordle >= 25) await tryAward('octordle_silver');
+  if (funWins.octordle >= 50) await tryAward('octordle_gold');
+
+  // Glückspilz
+  if (context.guesses === 1 && context.mode === 'daily') await tryAward('lucky');
+
+  // Nachteule: 5 Min vor Mitternacht = nach 23:55
+  if (context.mode === 'daily' && context.won) {
+    const now = new Date();
+    const h = now.getHours(), m = now.getMinutes();
+    if (h === 23 && m >= 55) await tryAward('owl');
+    if (h === 0 && m < 10)   await tryAward('bird');
+  }
+
+  // König des Tages — prüfe ob heute alle 5 Modi gewonnen
+  if (context.mode && context.won) await checkAllDayBadge(userId, earned, tryAward);
+
+  // Popups anzeigen
+  newBadges.forEach(def => queueBadgePopup(def));
+
+  // Profil neu rendern falls offen
+  if (document.getElementById('page-profile')?.classList.contains('active')) {
+    renderBadges(earned);
+  }
+}
+
+// Hilfsfunktion: Prüft ob heute alle Modi gewonnen wurden
+async function checkAllDayBadge(userId, earned, tryAward) {
+  if (earned.has('allday')) return;
+  const today = new Date().toDateString();
+  const todayDE = getTodayKey('de');
+  const todayEN = getTodayKey('en');
+  try {
+    // Daily DE + EN heute gewonnen?
+    const lbDE = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.de&day_key=eq.${todayDE}&attempts=lt.7`);
+    const lbEN = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.en&day_key=eq.${todayEN}&attempts=lt.7`);
+    if (!lbDE?.length || !lbEN?.length) return;
+
+    // Fun wins heute?
+    const fw = await sbFetch(`fun_wins?user_id=eq.${userId}&select=mode,won_at`);
+    const todayFun = { dordle: false, quordle: false, octordle: false };
+    (fw || []).forEach(r => {
+      const d = new Date(r.won_at).toDateString();
+      if (d === today && todayFun[r.mode] !== undefined) todayFun[r.mode] = true;
+    });
+    if (todayFun.dordle && todayFun.quordle && todayFun.octordle) {
+      await tryAward('allday');
+    }
+  } catch {}
+}
+
+// ---- Badge rendern im Profil ----
+
+async function renderBadges(earnedSet) {
+  const grid = document.getElementById('badge-grid');
+  if (!grid) return;
+  const lang = state.lang;
+
+  // Gruppen zusammenfassen: höchstes verdientes Tier anzeigen, sonst locked
+  const groups = {};
+  BADGE_DEFS.forEach(b => {
+    if (!groups[b.group]) groups[b.group] = { defs: [], earned: null };
+    groups[b.group].defs.push(b);
+    if (earnedSet.has(b.id)) groups[b.group].earned = b;
+  });
+
+  grid.innerHTML = Object.values(groups).map(g => {
+    // Zeige höchstes verdientes, sonst das niedrigste (locked)
+    const tiers = ['gold','silver','bronze'];
+    let display = null;
+    for (const t of tiers) {
+      const found = g.defs.find(d => d.tier === t && earnedSet.has(d.id));
+      if (found) { display = found; break; }
+    }
+    const locked = !display;
+    const def = display || g.defs[g.defs.length - 1]; // locked → zeige gold def grau
+    const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
+    const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
+
+    // Tooltip: nächstes Ziel oder "erreicht"
+    const nextDef = locked
+      ? g.defs.find(d => d.tier === 'bronze')
+      : g.defs.find(d => !earnedSet.has(d.id) && ['bronze','silver','gold'].indexOf(d.tier) > ['bronze','silver','gold'].indexOf(def.tier));
+    const tooltipBase = locked
+      ? (nextDef ? nextDef.desc[lang] : def.desc[lang])
+      : def.desc[lang];
+
+    return `<div class="badge-item${locked ? '' : ' earned'}" title="${tooltipBase}">
+      <div class="badge-icon-wrap ${tierClass}">
+        ${def.emoji}
+        ${tierLabel}
+      </div>
+      <div class="badge-label">${def.name[lang]}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Profil-Hook ----
+// In setupProfilePage() am Ende aufrufen — füge diese Zeilen
+// am Ende des try-Blocks in setupProfilePage() ein:
+//   const earned = await loadEarnedBadges(state.currentUser.id);
+//   renderBadges(earned);
+// ABER weil wir setupProfilePage nicht ersetzen wollen, patchen wir:
+
+const _origSetupProfile = setupProfilePage;
+setupProfilePage = async function() {
+  await _origSetupProfile();
+  if (!state.currentUser) return;
+  const earned = await loadEarnedBadges(state.currentUser.id);
+  renderBadges(earned);
+};
+
+// ---- Fun-Mode Hook ----
+// Nach dem bestehenden afterFunReveal, füge einen Win-Eintrag ein.
+// Suche in afterFunReveal: "const allWon = solvedCount === cfg.grids;"
+// und direkt danach (vor dem Toast) diese Logik einfügen:
+// → Wir patchen via afterFunReveal kann nicht direkt gepatcht werden,
+//   daher rufe am Ende der afterFunReveal-Funktion dies auf:
+
+async function recordFunWin(mode) {
+  if (!state.currentUser) return;
+  try {
+    await sbFetch('fun_wins', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: state.currentUser.id, mode }),
+      prefer: 'return=minimal'
+    });
+  } catch(e) { console.warn('fun_wins insert error:', e); }
+}
+
 loadData();
+

@@ -95,6 +95,13 @@
           <p id="profile-email">user@example.com</p>
         </div>
       </div>
+      <!-- BADGES -->
+      <div class="badge-section" id="badge-section">
+        <div class="section-title" id="badge-section-title">Abzeichen</div>
+        <div class="badge-grid" id="badge-grid">
+          <div class="lb-empty" style="font-size:0.8rem; padding:20px;">⏳</div>
+        </div>
+      </div>
       <div class="stats-grid">
         <div class="stat-card streak-card">
           <span class="value" id="stat-streak">0</span>
@@ -407,6 +414,16 @@
     </div>
   </div>
   <div id="offline-warning-banner" style="display:none; background: rgba(232,88,10,0.12); border: 1px solid var(--primary); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: var(--primary); margin-bottom: 16px; text-align: center;"></div>
+</div>
+<!-- ===== BADGE POPUP ===== -->
+<div class="badge-popup-overlay" id="badge-popup-overlay" onclick="closeBadgePopup()">
+  <div class="badge-popup" id="badge-popup" onclick="event.stopPropagation()">
+    <div class="badge-popup-emoji" id="badge-popup-emoji">🏅</div>
+    <div class="badge-popup-new">Neues Abzeichen!</div>
+    <div class="badge-popup-name" id="badge-popup-name">—</div>
+    <div class="badge-popup-desc" id="badge-popup-desc">—</div>
+    <button class="btn btn-primary" onclick="closeBadgePopup()" style="margin-top:16px; width:100%">Cool! 🎉</button>
+  </div>
 </div>
 
 <!-- ===== TOAST ===== -->

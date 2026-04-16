@@ -2,6 +2,12 @@ Fixes:
 - octordel starte bei 4 reihen dann bei 800 zu 3 reihen switchen und bei 450 wieder zu 4 reihen
 - octordel/quordle wenn man eins richtig hat dann nach oben verschieben / feste tastatur
 - fun mode lose pop up klebt oben am bildschirm
+- badges icht anzeigen erst wenn man sie hat.
+- badge animation kommt nicht / wird nicht angezeigt im profil (supabast steht was)
+- anmerkung: if (allWon && state.currentUser) {
+  await recordFunWin(funState.mode);
+  checkAndAwardBadges({ mode: funState.mode, won: true });
+} -> ohne await eingefügt weil ging nicht
 
 Ideen:
 - freunde icon (button) -> adden / anfragen -> akzeptieren / ablehnen
@@ -9,4 +15,3 @@ Ideen:
 - profile von anderen anklicken -> freundesanfrage senden -> (neben ihm freundes icon anzeigen in leaderboard)
 - registrieren - passwort zurücksetzen / email bestätigen
 - white mode
-- badges für profil (100 wins, ...)
