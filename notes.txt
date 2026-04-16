@@ -1,12 +1,10 @@
 Fixes:
-- fun mode abstand von spiel zur tastatur bisschen größer wie bei daily
 - fun mode win zeile bei kleinen bildschirmen anpassen
-- fun mode größe von wordle gleich wie daily wordle
 - fun mode new button
 - octordel starte bei 4 reihen dann bei 800 zu 3 reihen switchen und bei 450 wieder zu 4 reihen
-- octordel wenn man eins richtig hat dann nach oben verschieben
+- octordel wenn man eins richtig hat dann nach oben verschieben / feste tastatur
 - fun mode überschirten anpassen
-- tastatur auf nohc kleineren soll noch kleiner sein und uhrzeit soll auch auf hand yalso auf klienerm sein
+- tastatur auf nohc kleineren soll noch kleiner sein und uhrzeit soll auch auf handy also auf klienerem sein
 
 Ideen:
 - freunde adden -> deren profile ansehen
