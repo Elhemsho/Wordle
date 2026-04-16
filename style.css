@@ -613,7 +613,7 @@ body.is-offline .keyboard {
 /* ===== FUN MODE PAGE ===== */
 #page-funmode {
   flex-direction: column; align-items: center;
-  padding: 16px 12px 24px; gap: 16px; overflow-y: auto;
+  padding: 16px 12px 24px; gap: 24px; overflow-y: auto;
 }
 .funmode-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -641,6 +641,7 @@ body.is-offline .keyboard {
 .fun-grid { display: flex; flex-direction: column; gap: 4px; }
 
 .grids-1 .fun-tile { width: 62px; height: 62px; font-size: 1.6rem; }
+.grids-1 .fun-grid { gap: 6px; }
 .grids-2 .fun-tile { width: 54px; height: 54px; font-size: 1.4rem; }
 .grids-4 .fun-tile { width: 48px; height: 48px; font-size: 1.2rem; }
 .grids-8 .fun-tile { width: 38px; height: 38px; font-size: 1rem; border-radius: 5px; }
@@ -648,7 +649,12 @@ body.is-offline .keyboard {
 /* ===== FUN KEYBOARD ===== */
 #funmode-keyboard { max-width: 600px; width: 100%; }
 
-.fun-key { position: relative; flex-direction: column; gap: 2px; padding-bottom: 4px; min-height: 58px; }
+#funmode-keyboard .key { min-width: 40px; height: 54px; padding: 0 8px; }
+#funmode-keyboard .key.wide { min-width: 62px; font-size: 0.75rem; }
+#funmode-keyboard .keyboard-row { gap: 5px; }
+#funmode-keyboard .keyboard { gap: 6px; }
+
+.fun-key { position: relative; flex-direction: column; gap: 2px; padding-bottom: 4px; min-height: 54px; }
 .key-letter { font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; line-height: 1; pointer-events: none; }
 
 .key-segments { display: flex; gap: 2px; width: 100%; padding: 0 4px; pointer-events: none; }
@@ -715,8 +721,12 @@ body.is-offline .keyboard {
     margin-top: 50px !important; /* Auch auf Mobile den Abstand halten */
     padding: 20px 16px;
   }
-  #page-funmode { padding: 10px 6px 16px; gap: 10px; }
+  #page-funmode { padding: 10px 6px 16px; gap: 20px; }
 
+/* Wördle (solo) - wie daily mode */
+.funmode-grids.grids-1 { max-width: 100%; }
+.grids-1 .fun-tile { width: 52px; height: 52px; font-size: 1.3rem; }
+.grids-1 .fun-grid { gap: 6px; }
   /* Dordle */
   .funmode-grids.grids-2 { gap: 6px; max-width: 100%; }
   .grids-2 .fun-tile { width: 32px; height: 32px; font-size: 0.82rem; border-radius: 5px; }
@@ -736,11 +746,12 @@ body.is-offline .keyboard {
   .grids-8 .fun-grid { gap: 2px; }
 
   /* Keyboard schmaler für alle Fun-Modi */
-  #funmode-keyboard .key { min-width: 28px; height: 46px; padding: 0 2px; }
-  #funmode-keyboard .key.wide { min-width: 40px; font-size: 0.65rem; }
-  #funmode-keyboard .keyboard-row { gap: 3px; }
-  .fun-key { min-height: 46px; padding-bottom: 3px; }
-  .key-letter { font-size: 0.72rem; }
+  #funmode-keyboard .key { min-width: 32px; height: 46px; padding: 0 4px; }
+#funmode-keyboard .key.wide { min-width: 48px; font-size: 0.68rem; }
+#funmode-keyboard .keyboard-row { gap: 4px; }
+#funmode-keyboard .keyboard { gap: 5px; }
+.fun-key { min-height: 46px; padding-bottom: 3px; }
+.key-letter { font-size: 0.75rem; }
 
   /* Octordle Segmente auf Mobile: 2×4 statt 4×2 */
   .segs-8 {
