@@ -4,8 +4,9 @@ Fixes:
 - fun mode lose pop up klebt oben am bildschirm
 
 Ideen:
-- freunde adden -> deren profile ansehen
+- freunde icon (button) -> adden / anfragen -> akzeptieren / ablehnen
+- stats von freunden sehen (freundesliste - sortiert nach avg guesses)
+- profile von anderen anklicken -> freundesanfrage senden -> (neben ihm freundes icon anzeigen in leaderboard)
 - registrieren - passwort zurücksetzen / email bestätigen
 - white mode
 - badges für profil (100 wins, ...)
-- leaderboard (nach wins sortieren spalte hinzufügen)

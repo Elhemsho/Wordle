@@ -956,7 +956,7 @@ function renderSortPills() {
   if (!row) return;
   const pills = lbState.tab === 'today'
     ? [{ key: 'attempts', label: de ? 'Versuche' : 'Attempts' }, { key: 'time', label: de ? 'Zeit' : 'Time' }]
-    : [{ key: 'avg', label: de ? 'Ø Versuche' : 'Avg. Attempts' }, { key: 'winrate', label: de ? 'Win Rate' : 'Win Rate' }, { key: 'streak', label: de ? 'Aktuelle Serie' : 'Current Streak' }, { key: 'best', label: de ? 'Längste Serie' : 'Best Streak' }];
+    : [{ key: 'avg', label: de ? 'Ø Versuche' : 'Avg. Attempts' }, { key: 'wins', label: de ? 'Siege' : 'Wins' }, { key: 'winrate', label: de ? 'Win Rate' : 'Win Rate' }, { key: 'streak', label: de ? 'Aktuelle Serie' : 'Current Streak' }, { key: 'best', label: de ? 'Längste Serie' : 'Best Streak' }];
   const current = lbState.tab === 'today' ? lbState.sortToday : lbState.sortAll;
   row.innerHTML = pills.map(p =>
     `<button class="lb-pill${p.key === current ? ' active' : ''}" onclick="lbSetSort('${p.key}')">${p.label}</button>`
@@ -1000,7 +1000,7 @@ async function fetchAndRenderList() {
       }).join('');
     } else {
       const sort = lbState.sortAll;
-      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : sort === 'best' ? 'best_streak.desc,streak.desc' : 'won.desc,played.asc';
+      const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : sort === 'best' ? 'best_streak.desc,streak.desc' : sort === 'wins' ? 'won.desc,played.asc' : 'won.desc,played.asc';
       
       let rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&played=gte.3&order=${order}&limit=10&select=*,users(username)`);
       if (!rows || rows.length === 0) { 
@@ -1021,6 +1021,11 @@ async function fetchAndRenderList() {
           if (avgA !== avgB) return avgA - avgB; // niedriger Schnitt zuerst
           return b.won - a.won; // bei gleichem Schnitt: mehr Siege zuerst
         });
+      }else if (sort === 'wins') {
+        rows = rows.sort((a, b) => {
+          if (b.won !== a.won) return b.won - a.won;
+          return a.played - b.played; // bei gleichen Siegen: weniger Spiele = besser
+        });
       }
       list.innerHTML = rows.map((s, i) => {
         const isMe = state.currentUser && s.user_id === state.currentUser.id;
@@ -1029,12 +1034,14 @@ async function fetchAndRenderList() {
         const avg = s.played > 0 ? (s.total_attempts / s.played).toFixed(1) : '—';
         const winrate = s.played > 0 ? Math.round((s.won / s.played) * 100) + '%' : '0%';
         const hi = sort === 'avg'
-          ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
-          : sort === 'winrate'
-          ? `<div class="lb-stat-hi">${winrate}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
-          : sort === 'streak'
-          ? `<div class="lb-stat-hi">🔥 ${s.streak}</div><div class="lb-stat-lo">${de ? 'Beste' : 'Best'}: ${s.best_streak}</div>`
-          : `<div class="lb-stat-hi">🏆 ${s.best_streak}</div><div class="lb-stat-lo">${de ? 'Aktuell' : 'Now'}: ${s.streak}</div>`;
+  ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
+  : sort === 'wins'
+  ? `<div class="lb-stat-hi">🏆 ${s.won}</div><div class="lb-stat-lo" style="color:var(--text-muted)">${s.played - s.won} ${de ? 'L' : 'L'}</div>`
+  : sort === 'winrate'
+  ? `<div class="lb-stat-hi">${winrate}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
+  : sort === 'streak'
+  ? `<div class="lb-stat-hi">🔥 ${s.streak}</div><div class="lb-stat-lo">${de ? 'Beste' : 'Best'}: ${s.best_streak}</div>`
+  : `<div class="lb-stat-hi">🏆 ${s.best_streak}</div><div class="lb-stat-lo">${de ? 'Aktuell' : 'Now'}: ${s.streak}</div>`;
         return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
           ${rank}
           <div class="lb-avatar">${name[0].toUpperCase()}</div>
