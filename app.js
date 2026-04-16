@@ -1048,22 +1048,33 @@ function shareResult() {
 
 function formatTime(sec) { return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`; }
 
-function showToast(msg, type = 'info', duration = 3000) {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`; 
-  toast.textContent = msg;
-  
+function showToast(msg, type = 'info', duration = 3000, isBoard = false) {
   const container = document.getElementById('toast-container');
-  if (container) {
-    container.appendChild(toast);
-    
-    // Nutzt jetzt die 'duration', die du beim Aufruf übergibst
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type} ${isBoard ? 'toast-board' : ''}`;
+  toast.innerHTML = msg;
+  
+  container.appendChild(toast);
+
+  const close = () => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+    document.removeEventListener('click', close);
+    document.removeEventListener('touchstart', close);
+  };
+
+  // Wenn es ein Board ist, überall Klicks erlauben zum Schließen
+  if (isBoard) {
     setTimeout(() => {
-      // Falls du eine CSS-Animation für das Ausblenden hast, 
-      // könntest du hier erst eine Klasse hinzufügen.
-      toast.remove();
-    }, duration);
+      document.addEventListener('click', close);
+      document.addEventListener('touchstart', close, { passive: true });
+    }, 400); // 400ms Sperre, damit der "Senden"-Klick nicht zählt
   }
+
+  // Für normale Toasts: Auto-Close
+  setTimeout(() => { if(toast.parentNode) close(); }, duration);
 }
 
 document.addEventListener('keydown', e => {
@@ -1530,11 +1541,12 @@ if ((cfg.grids === 4 || cfg.grids === 8) && funState.visibleRows < cfg.attempts)
           : (de ? `Das Wort war: ${funState.targets[0]}` : `The word was: ${funState.targets[0]}`);
       } else {
         msg = allWon
-          ? (de ? `🎉 Alle ${cfg.grids} Wörter gefunden!` : `🎉 All ${cfg.grids} words found!`)
-          : (de ? `${solvedCount}/${cfg.grids} Wörter: ` : `${solvedCount}/${cfg.grids} words: `)
-            + funState.targets.map((t) => (funState.guesses.includes(t) ? '✓' : '✕') + ' ' + t).join('  ');
+  ? (de ? `🎉 Alle ${cfg.grids} Wörter gefunden!` : `🎉 All ${cfg.grids} words found!`)
+  : (de ? `<b>${solvedCount}/${cfg.grids} Wörter gefunden:</b><br>` : `<b>${solvedCount}/${cfg.grids} words found:</b><br>`)
+    + funState.targets.map((t) => (funState.guesses.includes(t) ? '✓' : '✕') + ' ' + t).join('<br>'); 
+    // .join('<br>') sorgt dafür, dass jedes Wort eine neue Zeile bekommt
       }
-      showToast(msg, allWon ? 'success' : 'info', 8000);
+      showToast(msg, allWon ? 'success' : 'info', 8000, true);
     }, 600);
   } else {
     updateFunCurrentRow();

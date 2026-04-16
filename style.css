@@ -351,12 +351,86 @@ header {
 /* ============================================================
    TOASTS
    ============================================================ */
-.toast-container { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 300; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.toast         { background: var(--surface-light); border: 1px solid var(--surface-border); padding: 12px 24px; border-radius: 100px; font-size: 0.88rem; font-weight: 600; letter-spacing: 0.05em; color: var(--text); animation: toastIn 0.3s ease, toastOut 0.3s ease 2.4s both; white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+/* --- KLASSISCHER TOAST (Daily, Login, etc.) --- */
+.toast-container {
+  position: fixed;
+  top: 80px; /* Wieder oben */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--surface-light);
+  border: 1px solid var(--surface-border);
+  padding: 12px 24px;
+  border-radius: 100px; /* Wieder Pille */
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  white-space: nowrap;
+  animation: toastIn 0.3s ease forwards;
+  pointer-events: auto;
+}
+
+/* --- FUN-MODE BOARD (Nur für Quordle/Octordle Ergebnisse) --- */
+/* Wir nutzen eine zusätzliche Klasse für das Spezial-Design */
+/* --- FUN-MODE BOARD (Zentriert) --- */
+.toast.toast-board {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  /* Wir überschreiben hier ALLES: Position und Animation */
+  transform: translate(-50%, -50%) !important; 
+  animation: boardIn 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards !important; 
+  
+  margin: 0 !important;
+  width: 90vw;
+  max-width: 340px !important;
+  border-radius: var(--radius) !important;
+  white-space: normal !important;
+  text-align: center !important;
+  padding: 25px !important;
+  max-height: 80vh;
+  overflow-y: auto;
+  
+  box-shadow: 0 0 0 2000px rgba(0,0,0,0.7), 0 15px 50px rgba(0,0,0,0.8);
+  z-index: 10001;
+  pointer-events: auto;
+}
+
+/* Eigene Animation für das Board, damit die "Pillen-Animation" von oben nicht stört */
+@keyframes boardIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.9); /* Startet leicht versetzt in der Mitte */
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1); /* Endet exakt mittig */
+  }
+}
+
+/* WICHTIG: Sicherstellen, dass die Liste im Board richtig aussieht */
+.toast-board b {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: var(--primary-light);
+  text-transform: uppercase;
+}
+
+/* Farben bleiben für beide gleich */
 .toast.success { border-color: var(--correct); color: var(--correct); }
 .toast.error   { border-color: #ff6b6b; color: #ff6b6b; }
 .toast.info    { border-color: var(--primary); color: var(--primary); }
-
 @keyframes toastIn  { from { opacity: 0; transform: translateY(-12px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes toastOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-12px) scale(0.9); } }
 
@@ -647,7 +721,6 @@ header {
   .btn          { padding: 5px 9px; font-size: 0.72rem; }
   .btn-icon     { padding: 5px; font-size: 0.85rem; }
   .header-right { gap: 6px !important; }
-  #header-countdown { font-size: 0.7rem; display: none; }
 
   .lang-switcher { padding: 2px !important; gap: 2px !important; border-radius: 6px !important; }
   .lang-btn { padding: 3px 6px !important; font-size: 0.65rem !important; min-width: 40px !important; height: 24px !important; display: flex !important; align-items: center; justify-content: center; }
@@ -657,6 +730,7 @@ header {
 
   /* Daily game */
   #page-game    { padding: 16px 8px; gap: 16px; }
+  .countdown { font-family: var(--font-mono); font-size: 0.8rem; color: var(--primary); margin-top: 4px; }
   .grid-tile    { width: 52px; height: 52px; font-size: 1.3rem; }
   .key          { min-width: 32px; height: 46px; font-size: 0.75rem; padding: 0 4px; }
   .key.wide     { min-width: 48px; font-size: 0.68rem; }
@@ -723,6 +797,7 @@ header {
    RESPONSIVE — max-width: 400px
    ============================================================ */
 @media (max-width: 400px) {
+    .countdown { font-family: var(--font-mono); font-size: 0.8rem; color: var(--primary); margin-top: 4px; }
 
   /* Dordle */
   .funmode-grids.grids-2 { gap: 4px; }
