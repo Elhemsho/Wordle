@@ -1690,20 +1690,20 @@ async function loadEarnedBadges(userId) {
 }
 
 async function awardBadge(userId, badgeId) {
-  // Prüfe ob schon vorhanden (lokal + remote)
   try {
+    // Erst prüfen ob schon vorhanden
+    const existing = await sbFetch(`user_badges?user_id=eq.${userId}&badge_id=eq.${badgeId}&select=id`);
+    if (existing && existing.length > 0) return false;
     await sbFetch('user_badges', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, badge_id: badgeId }),
-      prefer: 'return=minimal',
-      headers: { 'Prefer': 'return=minimal', 'on-conflict': 'user_id,badge_id' }
+      prefer: 'return=minimal'
     });
+    return true;
   } catch(e) {
-    if (e.message && e.message.includes('unique')) return false; // schon da
     console.warn('Badge award error:', e);
     return false;
   }
-  return true;
 }
 
 function queueBadgePopup(badgeDef) {
@@ -1733,6 +1733,7 @@ function closeBadgePopup() {
 // ---- Haupt-Check-Funktion ----
 
 async function checkAndAwardBadges(context = {}) {
+  console.log('checkAndAwardBadges called', context, state.currentUser);
   if (!state.currentUser) return;
   const userId = state.currentUser.id;
   const lang = state.lang;
@@ -1858,36 +1859,38 @@ async function renderBadges(earnedSet) {
     groups[b.group].defs.push(b);
     if (earnedSet.has(b.id)) groups[b.group].earned = b;
   });
+const tierOrder = { gold: 0, silver: 1, bronze: 2 };
+const sortedGroups = Object.values(groups).sort((a, b) => {
+  const aEarned = !!a.earned;
+  const bEarned = !!b.earned;
+  if (aEarned !== bEarned) return bEarned - aEarned;
+  if (aEarned && bEarned) return tierOrder[a.earned.tier] - tierOrder[b.earned.tier];
+  return 0;
+});
 
-  grid.innerHTML = Object.values(groups).map(g => {
-    // Zeige höchstes verdientes, sonst das niedrigste (locked)
-    const tiers = ['gold','silver','bronze'];
-    let display = null;
-    for (const t of tiers) {
-      const found = g.defs.find(d => d.tier === t && earnedSet.has(d.id));
-      if (found) { display = found; break; }
-    }
-    const locked = !display;
-    const def = display || g.defs[g.defs.length - 1]; // locked → zeige gold def grau
-    const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
-    const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
-
-    // Tooltip: nächstes Ziel oder "erreicht"
-    const nextDef = locked
-      ? g.defs.find(d => d.tier === 'bronze')
-      : g.defs.find(d => !earnedSet.has(d.id) && ['bronze','silver','gold'].indexOf(d.tier) > ['bronze','silver','gold'].indexOf(def.tier));
-    const tooltipBase = locked
-      ? (nextDef ? nextDef.desc[lang] : def.desc[lang])
-      : def.desc[lang];
-
-    return `<div class="badge-item${locked ? '' : ' earned'}" title="${tooltipBase}">
-      <div class="badge-icon-wrap ${tierClass}">
-        ${def.emoji}
-        ${tierLabel}
-      </div>
-      <div class="badge-label">${def.name[lang]}</div>
-    </div>`;
-  }).join('');
+grid.innerHTML = sortedGroups.map(g => {
+  const tiers = ['gold','silver','bronze'];
+  let display = null;
+  for (const t of tiers) {
+    const found = g.defs.find(d => d.tier === t && earnedSet.has(d.id));
+    if (found) { display = found; break; }
+  }
+  const locked = !display;
+  const def = display || g.defs[g.defs.length - 1];
+  const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
+  const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
+  const nextDef = locked
+    ? g.defs.find(d => d.tier === 'bronze')
+    : g.defs.find(d => !earnedSet.has(d.id) && tierOrder[d.tier] < tierOrder[def.tier]);
+  const tooltipBase = locked ? (nextDef ? nextDef.desc[lang] : def.desc[lang]) : def.desc[lang];
+  return `<div class="badge-item${locked ? '' : ' earned'}" title="${tooltipBase}">
+    <div class="badge-icon-wrap ${tierClass}">
+      ${def.emoji}
+      ${tierLabel}
+    </div>
+    <div class="badge-label">${def.name[lang]}</div>
+  </div>`;
+}).join('');
 }
 
 // ---- Profil-Hook ----
@@ -1901,6 +1904,7 @@ const _origSetupProfile = setupProfilePage;
 setupProfilePage = async function() {
   await _origSetupProfile();
   if (!state.currentUser) return;
+  await backfillBadges();
   const earned = await loadEarnedBadges(state.currentUser.id);
   renderBadges(earned);
 };
@@ -1921,6 +1925,52 @@ async function recordFunWin(mode) {
       prefer: 'return=minimal'
     });
   } catch(e) { console.warn('fun_wins insert error:', e); }
+}
+
+async function backfillBadges() {
+  if (!state.currentUser) return;
+  const userId = state.currentUser.id;
+  try {
+    const deRows = await sbFetch(`stats?user_id=eq.${userId}&lang=eq.de`);
+    const enRows = await sbFetch(`stats?user_id=eq.${userId}&lang=eq.en`);
+    const statsDE = deRows?.[0] || null;
+    const statsEN = enRows?.[0] || null;
+    const totalWins = (statsDE?.won || 0) + (statsEN?.won || 0);
+    const bestStreak = Math.max(statsDE?.best_streak || 0, statsEN?.best_streak || 0);
+
+    const earned = await loadEarnedBadges(userId);
+    const newBadges = [];
+
+    async function tryAward(badgeId) {
+      if (earned.has(badgeId)) return;
+      const ok = await awardBadge(userId, badgeId);
+      if (ok) { earned.add(badgeId); const def = getBadgeDef(badgeId); if (def) newBadges.push(def); }
+    }
+
+    if (totalWins >= 10)  await tryAward('wins_bronze');
+    if (totalWins >= 50)  await tryAward('wins_silver');
+    if (totalWins >= 100) await tryAward('wins_gold');
+    if (bestStreak >= 7)   await tryAward('streak_bronze');
+    if (bestStreak >= 30)  await tryAward('streak_silver');
+    if (bestStreak >= 100) await tryAward('streak_gold');
+
+    // Fun wins
+    const fw = await sbFetch(`fun_wins?user_id=eq.${userId}&select=mode`);
+    const funWins = { dordle: 0, quordle: 0, octordle: 0 };
+    (fw || []).forEach(r => { if (funWins[r.mode] !== undefined) funWins[r.mode]++; });
+    if (funWins.dordle >= 5)  await tryAward('dordle_bronze');
+    if (funWins.dordle >= 25) await tryAward('dordle_silver');
+    if (funWins.dordle >= 50) await tryAward('dordle_gold');
+    if (funWins.quordle >= 5)  await tryAward('quordle_bronze');
+    if (funWins.quordle >= 25) await tryAward('quordle_silver');
+    if (funWins.quordle >= 50) await tryAward('quordle_gold');
+    if (funWins.octordle >= 5)  await tryAward('octordle_bronze');
+    if (funWins.octordle >= 25) await tryAward('octordle_silver');
+    if (funWins.octordle >= 50) await tryAward('octordle_gold');
+
+    newBadges.forEach(def => queueBadgePopup(def));
+    if (newBadges.length > 0) renderBadges(earned);
+  } catch(e) { console.warn('backfill error:', e); }
 }
 
 loadData();
