@@ -175,6 +175,7 @@ function applyLanguage(lang) {
   setEl('no-account-text', state.ui.noAccount);
   setEl('switch-to-register', ' ' + state.ui.register);
   setEl('has-account-text', state.ui.hasAccount);
+  setEl('stats-section-title', lang === 'de' ? 'Statistiken' : 'Statistics');
   setEl('switch-to-login', ' ' + state.ui.login);
   setEl('badge-section-title', lang === 'de' ? 'Abzeichen' : 'Badges');
   setEl('stat-streak-label', state.ui.currentStreak + ' 🔥');
@@ -1883,13 +1884,14 @@ grid.innerHTML = sortedGroups.map(g => {
     ? g.defs.find(d => d.tier === 'bronze')
     : g.defs.find(d => !earnedSet.has(d.id) && tierOrder[d.tier] < tierOrder[def.tier]);
   const tooltipBase = locked ? (nextDef ? nextDef.desc[lang] : def.desc[lang]) : def.desc[lang];
-  return `<div class="badge-item${locked ? '' : ' earned'}" title="${tooltipBase}">
-    <div class="badge-icon-wrap ${tierClass}">
-      ${def.emoji}
-      ${tierLabel}
-    </div>
-    <div class="badge-label">${def.name[lang]}</div>
-  </div>`;
+  return `<div class="badge-item${locked ? '' : ' earned'}" title="" onclick="toggleBadgeTooltip(this, '${def.name[lang]}', '${tooltipBase}')">
+  <div class="badge-icon-wrap ${tierClass}">
+    ${def.emoji}
+    ${tierLabel}
+  </div>
+  <div class="badge-label">${def.name[lang]}</div>
+  <div class="badge-tooltip"></div>
+</div>`;
 }).join('');
 }
 
@@ -1973,5 +1975,24 @@ async function backfillBadges() {
   } catch(e) { console.warn('backfill error:', e); }
 }
 
-loadData();
+function toggleBadgeTooltip(el, name, desc) {
+  // Alle anderen schließen
+  document.querySelectorAll('.badge-item.tooltip-open').forEach(b => {
+    if (b !== el) b.classList.remove('tooltip-open');
+  });
+  const tip = el.querySelector('.badge-tooltip');
+  if (tip) tip.textContent = desc;
+  el.classList.toggle('tooltip-open');
 
+  // Schließen bei Klick außerhalb
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!el.contains(e.target)) {
+        el.classList.remove('tooltip-open');
+        document.removeEventListener('click', close);
+      }
+    });
+  }, 10);
+}
+
+loadData();

@@ -1052,3 +1052,54 @@ header {
   .badge-icon-wrap { width: 44px; height: 44px; font-size: 1.25rem; }
   .badge-label { font-size: 0.58rem; max-width: 56px; }
 }
+
+/* Badge Tooltip */
+.badge-item { position: relative; }
+
+.badge-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-light);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.72rem;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  max-width: 220px;
+min-width: 140px;
+white-space: normal;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Sprechblasen-Pfeil */
+.badge-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--surface-border);
+}
+.badge-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--surface-light);
+  z-index: 1;
+  margin-top: -1px;
+}
+
+.badge-item.tooltip-open .badge-tooltip { opacity: 1; }
