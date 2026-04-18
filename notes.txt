@@ -1,12 +1,9 @@
 Fixes:
 - octordel starte bei 4 reihen dann bei 800 zu 3 reihen switchen und bei 450 wieder zu 4 reihen
 - octordel/quordle wenn man eins richtig hat dann nach oben verschieben / feste tastatur
-- fun mode lose pop up klebt oben am bildschirm
-- badges wenn man anklickt erklärung was man machen muss (1-2 secret)
-- uhrzeit bei kleienn bildschrimen weider weg
 
 Ideen:
-- freunde icon (button) -> adden / anfragen -> akzeptieren / ablehnen
+- freunde icon (button) -> adden / anfragen -> akzeptieren / ablehnen (badge hinzufügen)
 - stats von freunden sehen (freundesliste - sortiert nach avg guesses)
 - profile von anderen anklicken -> freundesanfrage senden -> (neben ihm freundes icon anzeigen in leaderboard)
 - registrieren - passwort zurücksetzen / email bestätigen
