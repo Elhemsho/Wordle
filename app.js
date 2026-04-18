@@ -1197,23 +1197,20 @@ function buildFunGrids(cfg, targets) {
   let initialVisible;
 
   if (cfg.grids === 4 || cfg.grids === 8) {
-    // Standard für Desktop/Laptop
-    initialVisible = 3; 
-
-    // Tablet-Bereich: Unter 800px (bis 450px) -> 4 Reihen
-    if (window.innerWidth < 800 && window.innerWidth >= 450) {
-      initialVisible = 4;
-    } 
-    // Handy-Bereich: Unter 450px
-    else if (window.innerWidth < 450) {
-      // Nur bei Quordle (4 Grids) gehen wir auf 5 Reihen
-      if (cfg.grids === 4) {
-        initialVisible = 6;
-      } else {
-        // Bei Octordle (8 Grids) bleiben wir bei 4 Reihen
-        initialVisible = 4;
-      }
-    }
+  const w = window.innerWidth;
+  if (cfg.grids === 8) {
+    if (w >= 900)       initialVisible = 5;
+    else if (w >= 800)   initialVisible = 4;
+    else if (w >= 600)   initialVisible = 3;
+    else                 initialVisible = 3;
+  } else {
+    // Quordle bleibt wie bisher
+    if (w < 450)         initialVisible = 6;
+    else if (w >= 900)   initialVisible = 6;
+    else if (w >= 800)   initialVisible = 6;
+    else if (w < 800)    initialVisible = 4;
+    else                 initialVisible = 3;
+  }
 } else {
     // Für Solo oder Dordle (2 Grids) bleiben alle Versuche sichtbar
     initialVisible = cfg.attempts;

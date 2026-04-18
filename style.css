@@ -759,6 +759,19 @@ header {
   .grids-8 .fun-tile { width: 46px; height: 46px; font-size: 1.2rem; }
 }
 
+@media (max-width: 1050px) {
+  .funmode-grids.grids-8 { grid-template-columns: repeat(2, 1fr); max-width: 100%; }
+  
+  .grids-8 .fun-tile { width: 34px; height: 34px; font-size: 0.9rem; border-radius: 5px; }
+  .grids-4 .fun-tile { width: 44px; height: 44px; font-size: 1.1rem; }
+  .grids-2 .fun-tile { width: 50px; height: 50px; font-size: 1.3rem; }
+  .grids-1 .fun-tile { width: 58px; height: 58px; font-size: 1.5rem; }
+
+  #funmode-keyboard .key      { min-width: 38px; height: 50px; }
+  #funmode-keyboard .key.wide { min-width: 58px; }
+  .fun-key { min-height: 50px; }
+}
+
 /* ============================================================
    RESPONSIVE — max-width: 600px
    ============================================================ */
@@ -1096,3 +1109,4 @@ white-space: normal;
 }
 
 .badge-item.tooltip-open .badge-tooltip { opacity: 1; }
+
