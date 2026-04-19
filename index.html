@@ -94,6 +94,7 @@
           <h2 id="profile-username">Username</h2>
           <p id="profile-email">user@example.com</p>
         </div>
+        <button class="btn-icon friends-profile-btn" onclick="navigate('friends')" id="btn-friends" title="Freunde">👥</button>
       </div>
       <!-- BADGES -->
       <div class="badge-section" id="badge-section">
@@ -131,6 +132,52 @@
       </div>
     </div>
   </div>
+
+  <!-- FRIENDS -->
+<div id="page-friends" class="page">
+  <div class="friends-container" id="friends-container">
+    <div class="friends-tabs">
+      <button class="lb-tab active" id="friends-tab-list"   onclick="friendsSetTab('list')">👥 <span id="friends-tab-list-label">Freunde</span></button>
+      <button class="lb-tab"        id="friends-tab-add"    onclick="friendsSetTab('add')">➕ <span id="friends-tab-add-label">Hinzufügen</span></button>
+    </div>
+
+    <!-- Tab: Freundesliste -->
+    <div id="friends-panel-list">
+      <div class="leaderboard-list" id="friends-list"><div class="lb-empty">⏳</div></div>
+    </div>
+
+    <!-- Tab: Freund hinzufügen -->
+    <div id="friends-panel-add" style="display:none;">
+      <div class="form-group" style="margin-bottom:12px;">
+        <input type="text" id="friends-search-input" placeholder="Benutzername suchen…" oninput="friendsSearchDebounce()" autocomplete="off" />
+      </div>
+      <div id="friends-search-result"></div>
+
+      <div class="section-title" id="friends-requests-title" style="margin-top:24px;">Anfragen</div>
+      <div class="leaderboard-list" id="friends-requests-list"><div class="lb-empty">⏳</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FRIEND PROFILE -->
+<div id="page-friend-profile" class="page">
+  <div class="profile-container">
+    <div class="friends-back" onclick="navigate('friends')">← <span id="friend-profile-back-label">Zurück</span></div>
+    <div class="profile-header">
+      <div class="profile-avatar" id="friend-profile-avatar">?</div>
+      <div class="profile-info">
+        <h2 id="friend-profile-username">—</h2>
+        <p id="friend-profile-email">—</p>
+      </div>
+    </div>
+    <div class="badge-section">
+      <div class="section-title" id="friend-badge-title">Abzeichen</div>
+      <div class="badge-grid" id="friend-badge-grid"><div class="lb-empty">⏳</div></div>
+    </div>
+    <div class="section-title" id="friend-stats-title">Statistiken</div>
+    <div class="stats-grid" id="friend-stats-grid"></div>
+  </div>
+</div>
 
   <!-- LEADERBOARD -->
   <div id="page-leaderboard" class="page">
@@ -416,6 +463,20 @@
   </div>
   <div id="offline-warning-banner" style="display:none; background: rgba(232,88,10,0.12); border: 1px solid var(--primary); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: var(--primary); margin-bottom: 16px; text-align: center;"></div>
 </div>
+
+<!-- FRIEND REQUEST POPUP -->
+<div class="badge-popup-overlay" id="friend-req-overlay" onclick="closeFriendReqPopup()">
+  <div class="badge-popup" onclick="event.stopPropagation()">
+    <div class="badge-popup-emoji">👥</div>
+    <div class="badge-popup-name" id="friend-req-name">—</div>
+    <div class="badge-popup-desc" id="friend-req-desc">Freundschaftsanfrage senden?</div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeFriendReqPopup()" style="flex:1" id="friend-req-cancel">Abbrechen</button>
+      <button class="btn btn-primary" onclick="confirmFriendRequest()" style="flex:1" id="friend-req-confirm">Senden</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== BADGE POPUP ===== -->
 <div class="badge-popup-overlay" id="badge-popup-overlay" onclick="closeBadgePopup()">
   <div class="badge-popup" id="badge-popup" onclick="event.stopPropagation()">

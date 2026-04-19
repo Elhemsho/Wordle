@@ -1,9 +1,9 @@
 Fixes:
 - octordel/quordle feste tastatur???
+- im leaderborad, das + oder freunde icon komplett weg
+- bei freund profil sprache wechseln soll die stats auch direkt wechseln abhänigg von der sprache.
+- badges sollen nicht sprach abhängig sein, anpassen mit wins usw zusammenrechnen
 
 Ideen:
-- freunde icon (button) -> adden / anfragen -> akzeptieren / ablehnen (badge hinzufügen)
-- stats von freunden sehen (freundesliste - sortiert nach avg guesses)
-- profile von anderen anklicken -> freundesanfrage senden -> (neben ihm freundes icon anzeigen in leaderboard)
 - registrieren - passwort zurücksetzen / email bestätigen
 - white mode

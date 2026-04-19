@@ -328,6 +328,7 @@ async function switchLanguage(lang) {
   }
   else if (pageId === 'page-profile') setupProfilePage();
   else if (pageId === 'page-leaderboard') setupLeaderboardPage();
+  else if (pageId === 'page-friend-profile') openFriendProfile(currentFriendProfileId, currentFriendProfileName);
 }
 
 function navigate(page) {
@@ -336,6 +337,8 @@ function navigate(page) {
   if (page === 'game') setupGamePage();
   if (page === 'profile') setupProfilePage();
   if (page === 'leaderboard') setupLeaderboardPage();
+  if (page === 'friends') setupFriendsPage();
+  if (page === 'friend-profile') { /* setup passiert in openFriendProfile */ }
 }
 function startGame() {
   state.isAnimating = false;   // sicherstellen dass kein Fun-Mode-Lock übrig ist
@@ -998,21 +1001,23 @@ async function fetchAndRenderList() {
         const hi = lbState.sortToday === 'time'
           ? `<div class="lb-stat-hi">${formatTime(e.time_seconds)}</div><div class="lb-stat-lo">${attemptsDisplay}</div>`
           : `<div class="lb-stat-hi">${attemptsDisplay}</div><div class="lb-stat-lo">${formatTime(e.time_seconds)}</div>`;
-        return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
+        return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" data-uid="${e.user_id}" style="animation-delay:${i*0.06}s">
           ${rank}
           <div class="lb-avatar">${e.username[0].toUpperCase()}</div>
-          <div class="lb-name">${e.username}${isMe ? `<span class="lb-you">${de ? 'Du' : 'You'}</span>` : ''}</div>
+          <div class="lb-name">
+            <span class="lb-name-click" data-uid="${e.user_id}" data-name="${e.username}">${e.username}</span>
+            ${isMe ? `<span class="lb-you">${de ? 'Du' : 'You'}</span>` : ''}
+          </div>
           ${hi}
         </div>`;
       }).join('');
     } else {
       const sort = lbState.sortAll;
       const order = sort === 'avg' ? 'total_attempts.asc,won.desc' : sort === 'streak' ? 'streak.desc,best_streak.desc' : sort === 'best' ? 'best_streak.desc,streak.desc' : sort === 'wins' ? 'won.desc,played.asc' : 'won.desc,played.asc';
-      
       let rows = await sbFetch(`stats?lang=eq.${state.lang}&won=gt.0&played=gte.3&order=${order}&limit=10&select=*,users(username)`);
-      if (!rows || rows.length === 0) { 
-        list.innerHTML = `<div class="lb-empty">${de ? 'Noch nicht genug Daten (min. 3 Spiele nötig).' : 'Not enough data yet (min. 3 games required).'}</div>`; 
-        return; 
+      if (!rows || rows.length === 0) {
+        list.innerHTML = `<div class="lb-empty">${de ? 'Noch nicht genug Daten (min. 3 Spiele nötig).' : 'Not enough data yet (min. 3 games required).'}</div>`;
+        return;
       }
       if (sort === 'winrate') {
         rows = rows.sort((a, b) => {
@@ -1025,13 +1030,13 @@ async function fetchAndRenderList() {
         rows = rows.sort((a, b) => {
           const avgA = a.played > 0 ? a.total_attempts / a.played : 0;
           const avgB = b.played > 0 ? b.total_attempts / b.played : 0;
-          if (avgA !== avgB) return avgA - avgB; // niedriger Schnitt zuerst
-          return b.won - a.won; // bei gleichem Schnitt: mehr Siege zuerst
+          if (avgA !== avgB) return avgA - avgB;
+          return b.won - a.won;
         });
-      }else if (sort === 'wins') {
+      } else if (sort === 'wins') {
         rows = rows.sort((a, b) => {
           if (b.won !== a.won) return b.won - a.won;
-          return a.played - b.played; // bei gleichen Siegen: weniger Spiele = besser
+          return a.played - b.played;
         });
       }
       list.innerHTML = rows.map((s, i) => {
@@ -1041,22 +1046,38 @@ async function fetchAndRenderList() {
         const avg = s.played > 0 ? (s.total_attempts / s.played).toFixed(1) : '—';
         const winrate = s.played > 0 ? Math.round((s.won / s.played) * 100) + '%' : '0%';
         const hi = sort === 'avg'
-  ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
-  : sort === 'wins'
-  ? `<div class="lb-stat-hi">🏆 ${s.won}</div><div class="lb-stat-lo" style="color:var(--text-muted)">${s.played - s.won} ${de ? 'L' : 'L'}</div>`
-  : sort === 'winrate'
-  ? `<div class="lb-stat-hi">${winrate}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
-  : sort === 'streak'
-  ? `<div class="lb-stat-hi">🔥 ${s.streak}</div><div class="lb-stat-lo">${de ? 'Beste' : 'Best'}: ${s.best_streak}</div>`
-  : `<div class="lb-stat-hi">🏆 ${s.best_streak}</div><div class="lb-stat-lo">${de ? 'Aktuell' : 'Now'}: ${s.streak}</div>`;
-        return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" style="animation-delay:${i*0.06}s">
+          ? `<div class="lb-stat-hi">${avg}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
+          : sort === 'wins'
+          ? `<div class="lb-stat-hi">🏆 ${s.won}</div><div class="lb-stat-lo" style="color:var(--text-muted)">${s.played - s.won} L</div>`
+          : sort === 'winrate'
+          ? `<div class="lb-stat-hi">${winrate}</div><div class="lb-stat-lo">${s.won}W / ${s.played}G</div>`
+          : sort === 'streak'
+          ? `<div class="lb-stat-hi">🔥 ${s.streak}</div><div class="lb-stat-lo">${de ? 'Beste' : 'Best'}: ${s.best_streak}</div>`
+          : `<div class="lb-stat-hi">🏆 ${s.best_streak}</div><div class="lb-stat-lo">${de ? 'Aktuell' : 'Now'}: ${s.streak}</div>`;
+        return `<div class="lb-entry rank-${i+1}${isMe ? ' current-user' : ''}" data-uid="${s.user_id}" style="animation-delay:${i*0.06}s">
           ${rank}
           <div class="lb-avatar">${name[0].toUpperCase()}</div>
-          <div class="lb-name">${name}${isMe ? `<span class="lb-you">${de ? 'Du' : 'You'}</span>` : ''}</div>
+          <div class="lb-name">
+            <span class="lb-name-click" data-uid="${s.user_id}" data-name="${name}">${name}</span>
+            ${isMe ? `<span class="lb-you">${de ? 'Du' : 'You'}</span>` : ''}
+          </div>
           ${hi}
         </div>`;
       }).join('');
     }
+
+    // Freund-Icons nach dem Rendern einfügen
+    if (state.currentUser) {
+      try {
+        const friendIds = await getFriendIds(state.currentUser.id);
+        document.querySelectorAll('.lb-name-click').forEach(span => {
+          if (friendIds.has(span.dataset.uid)) {
+            span.insertAdjacentHTML('afterend', '<span class="lb-friend-icon">👥</span>');
+          }
+        });
+      } catch(e) {}
+    }
+
   } catch(e) {
     const l = document.getElementById('leaderboard-list');
     if (l) l.innerHTML = `<div class="lb-empty">${de ? 'Fehler beim Laden.' : 'Error loading.'}</div>`;
@@ -1665,6 +1686,8 @@ const BADGE_DEFS = [
   // --- Einmalig: Frühaufsteher ---
   { id: 'bird',    group: 'bird',    tier: 'gold', emoji: '🐦', name: { de: 'Frühaufsteher',  en: 'Early Bird' },    desc: { de: 'Daily 10 Min nach Mitternacht gelöst', en: 'Solved daily 10 min after midnight' } },
 
+  { id: 'first_friend', group: 'first_friend', tier: 'gold', emoji: '🤝', name: { de: 'Sozial', en: 'Social' }, desc: { de: 'Ersten Freund hinzugefügt', en: 'Added your first friend' } },
+
   // --- Einmalig: Alles an einem Tag ---
   { id: 'allday',  group: 'allday',  tier: 'gold', emoji: '👑', name: { de: 'König des Tages', en: 'Day King' },      desc: { de: 'DE+EN Daily + Dordle + Quordle + Octordle an einem Tag', en: 'DE+EN Daily + Dordle + Quordle + Octordle in one day' } },
 ];
@@ -1804,6 +1827,11 @@ async function checkAndAwardBadges(context = {}) {
     const h = now.getHours(), m = now.getMinutes();
     if (h === 23 && m >= 55) await tryAward('owl');
     if (h === 0 && m < 10)   await tryAward('bird');
+  }
+
+  if (context.mode === 'friend_added') {
+    const friendIds = await getFriendIds(userId);
+    if (friendIds.size >= 1) await tryAward('first_friend');
   }
 
   // König des Tages — prüfe ob heute alle 5 Modi gewonnen
@@ -1991,5 +2019,379 @@ function toggleBadgeTooltip(el, name, desc) {
     });
   }, 10);
 }
+
+// ============================================================
+//  FRIENDS SYSTEM
+// ============================================================
+
+let friendsTab = 'list';
+let friendReqTarget = null; // { id, username } — für Popup
+let friendsSearchTimer = null;
+let currentFriendProfileId = null;
+let currentFriendProfileName = null;
+
+// ---- Navigation Hook ----
+const _origNavigate = navigate;
+// navigate wird weiter unten gepatcht nach Definition
+
+function friendsSetTab(tab) {
+  friendsTab = tab;
+  const de = state.lang === 'de';
+  document.getElementById('friends-tab-list').classList.toggle('active', tab === 'list');
+  document.getElementById('friends-tab-add').classList.toggle('active', tab === 'add');
+  document.getElementById('friends-panel-list').style.display = tab === 'list' ? '' : 'none';
+  document.getElementById('friends-panel-add').style.display = tab === 'add' ? '' : 'none';
+  if (tab === 'list') loadFriendsList();
+  else loadFriendRequests();
+}
+
+async function setupFriendsPage() {
+  if (!state.currentUser) { navigate('home'); return; }
+  updateFriendsLanguage();
+  friendsSetTab('list');
+}
+
+function updateFriendsLanguage() {
+  const de = state.lang === 'de';
+  setEl('friends-tab-list-label',   de ? 'Freunde' : 'Friends');
+  setEl('friends-tab-add-label',    de ? 'Hinzufügen' : 'Add');
+  setEl('friends-requests-title',   de ? 'Offene Anfragen' : 'Pending Requests');
+  setEl('friend-profile-back-label', de ? 'Zurück' : 'Back');
+  setEl('friend-badge-title',       de ? 'Abzeichen' : 'Badges');
+  setEl('friend-stats-title',       de ? 'Statistiken' : 'Statistics');
+  const inp = document.getElementById('friends-search-input');
+  if (inp) inp.placeholder = de ? 'Benutzername suchen…' : 'Search username…';
+  setEl('friend-req-confirm', de ? 'Senden' : 'Send');
+  setEl('friend-req-cancel',  de ? 'Abbrechen' : 'Cancel');
+}
+
+// ---- Freundesliste laden ----
+async function loadFriendsList() {
+  const list = document.getElementById('friends-list');
+  if (!list) return;
+  list.innerHTML = '<div class="lb-empty">⏳</div>';
+  const de = state.lang === 'de';
+  const userId = state.currentUser.id;
+
+  try {
+    // Alle akzeptierten Freundschaften
+    const sent = await sbFetch(`friendships?requester_id=eq.${userId}&status=eq.accepted&select=receiver_id`);
+    const recv = await sbFetch(`friendships?receiver_id=eq.${userId}&status=eq.accepted&select=requester_id`);
+    const friendIds = [
+      ...(sent || []).map(r => r.receiver_id),
+      ...(recv || []).map(r => r.requester_id)
+    ];
+    if (friendIds.length === 0) {
+      list.innerHTML = `<div class="lb-empty">${de ? 'Noch keine Freunde.' : 'No friends yet.'}</div>`;
+      return;
+    }
+
+    // User-Daten + Stats laden
+    const todayDE = getTodayKey('de');
+    const todayEN = getTodayKey('en');
+    const friends = await Promise.all(friendIds.map(async fid => {
+      const uRows = await sbFetch(`users?id=eq.${fid}&select=id,username`);
+      const u = uRows?.[0];
+      if (!u) return null;
+      const sDE = await sbFetch(`stats?user_id=eq.${fid}&lang=eq.de&select=won,played,total_attempts`);
+      const sEN = await sbFetch(`stats?user_id=eq.${fid}&lang=eq.en&select=won,played,total_attempts`);
+      const sd = sDE?.[0], se = sEN?.[0];
+      const totalPlayed = (sd?.played || 0) + (se?.played || 0);
+      const totalAttempts = (sd?.total_attempts || 0) + (se?.total_attempts || 0);
+      const avg = totalPlayed > 0 ? (totalAttempts / totalPlayed).toFixed(1) : '—';
+      // Heutiger Eintrag
+      const lbDE = await sbFetch(`leaderboard?user_id=eq.${fid}&day_key=eq.${todayDE}&select=attempts`);
+      const lbEN = await sbFetch(`leaderboard?user_id=eq.${fid}&day_key=eq.${todayEN}&select=attempts`);
+      const todayAttempts = lbDE?.[0]?.attempts || lbEN?.[0]?.attempts || null;
+      return { id: fid, username: u.username, avg, todayAttempts };
+    }));
+
+    const valid = friends.filter(Boolean).sort((a, b) => {
+      if (a.avg === '—' && b.avg === '—') return 0;
+      if (a.avg === '—') return 1;
+      if (b.avg === '—') return -1;
+      return parseFloat(a.avg) - parseFloat(b.avg);
+    });
+
+    list.innerHTML = valid.map(f => {
+      const todayStr = f.todayAttempts
+        ? (f.todayAttempts === 7 ? '✕' : `${f.todayAttempts}/6`)
+        : '—';
+      return `<div class="friend-entry lb-entry" onclick="openFriendProfile('${f.id}', '${f.username}')">
+        <div class="lb-avatar">${f.username[0].toUpperCase()}</div>
+        <div class="friend-entry-name">${f.username}</div>
+        <div class="friend-entry-avg">${f.avg}</div>
+        <div class="friend-entry-today">${todayStr}</div>
+        <button class="btn btn-ghost" style="padding:5px 10px; font-size:0.75rem;" onclick="event.stopPropagation(); confirmRemoveFriend('${f.id}', '${f.username}')">${de ? 'Entfernen' : 'Remove'}</button>
+      </div>`;
+    }).join('');
+  } catch(e) { list.innerHTML = `<div class="lb-empty">${de ? 'Fehler beim Laden.' : 'Error loading.'}</div>`; }
+}
+
+// ---- Anfragen laden ----
+async function loadFriendRequests() {
+  const list = document.getElementById('friends-requests-list');
+  if (!list) return;
+  list.innerHTML = '<div class="lb-empty">⏳</div>';
+  const de = state.lang === 'de';
+  const userId = state.currentUser.id;
+  try {
+    const reqs = await sbFetch(`friendships?receiver_id=eq.${userId}&status=eq.pending&select=id,requester_id`);
+    if (!reqs || reqs.length === 0) {
+      list.innerHTML = `<div class="lb-empty">${de ? 'Keine offenen Anfragen.' : 'No pending requests.'}</div>`;
+      return;
+    }
+    const entries = await Promise.all(reqs.map(async r => {
+      const uRows = await sbFetch(`users?id=eq.${r.requester_id}&select=username`);
+      return { friendshipId: r.id, username: uRows?.[0]?.username || '?' };
+    }));
+    list.innerHTML = entries.map(e => `
+      <div class="friend-req-entry">
+        <div class="lb-avatar">${e.username[0].toUpperCase()}</div>
+        <div class="friend-req-name">${e.username}</div>
+        <div class="friend-req-actions">
+          <button class="btn btn-primary" onclick="acceptFriendRequest(${e.friendshipId})">${de ? 'Annehmen' : 'Accept'}</button>
+          <button class="btn btn-ghost"   onclick="declineFriendRequest(${e.friendshipId})">${de ? 'Ablehnen' : 'Decline'}</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { list.innerHTML = `<div class="lb-empty">${de ? 'Fehler.' : 'Error.'}</div>`; }
+}
+
+// ---- Suche ----
+function friendsSearchDebounce() {
+  clearTimeout(friendsSearchTimer);
+  friendsSearchTimer = setTimeout(friendsSearch, 400);
+}
+
+async function friendsSearch() {
+  const q = document.getElementById('friends-search-input').value.trim();
+  const res = document.getElementById('friends-search-result');
+  const de = state.lang === 'de';
+  if (!res) return;
+  if (q.length < 2) { res.innerHTML = ''; return; }
+  try {
+    const rows = await sbFetch(`users?username=ilike.${encodeURIComponent(q)}*&select=id,username&limit=5`);
+    if (!rows || rows.length === 0) { res.innerHTML = `<div style="color:var(--text-muted); font-size:0.85rem; padding:8px 0">${de ? 'Niemanden gefunden.' : 'Nobody found.'}</div>`; return; }
+    // Eigene ID rausfiltern
+    const others = rows.filter(r => r.id !== state.currentUser.id);
+    // Bestehende Freundschaften prüfen
+    const userId = state.currentUser.id;
+    const friendIds = await getFriendIds(userId);
+    const pendingOut = await sbFetch(`friendships?requester_id=eq.${userId}&status=eq.pending&select=receiver_id`);
+    const pendingIds = new Set((pendingOut || []).map(r => r.receiver_id));
+
+    res.innerHTML = others.map(u => {
+      const isFriend = friendIds.has(u.id);
+      const isPending = pendingIds.has(u.id);
+      const btn = isFriend
+        ? `<span class="friend-icon">✓ ${de ? 'Freund' : 'Friend'}</span>`
+        : isPending
+        ? `<span style="color:var(--text-muted); font-size:0.78rem">${de ? 'Ausstehend' : 'Pending'}</span>`
+        : `<button class="btn btn-primary" style="padding:6px 14px; font-size:0.78rem" onclick="openFriendReqPopup('${u.id}','${u.username}')">${de ? 'Hinzufügen' : 'Add'}</button>`;
+      return `<div class="friends-search-result-item">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="lb-avatar">${u.username[0].toUpperCase()}</div>
+          <span style="font-weight:600">${u.username}</span>
+        </div>
+        ${btn}
+      </div>`;
+    }).join('');
+  } catch(e) { res.innerHTML = ''; }
+}
+
+async function getFriendIds(userId) {
+  const sent = await sbFetch(`friendships?requester_id=eq.${userId}&status=eq.accepted&select=receiver_id`);
+  const recv = await sbFetch(`friendships?receiver_id=eq.${userId}&status=eq.accepted&select=requester_id`);
+  return new Set([
+    ...(sent || []).map(r => r.receiver_id),
+    ...(recv || []).map(r => r.requester_id)
+  ]);
+}
+
+// ---- Anfrage senden ----
+function openFriendReqPopup(targetId, targetUsername) {
+  friendReqTarget = { id: targetId, username: targetUsername };
+  const de = state.lang === 'de';
+  setEl('friend-req-name', targetUsername);
+  setEl('friend-req-desc', de ? 'Freundschaftsanfrage senden?' : 'Send friend request?');
+  document.getElementById('friend-req-overlay').classList.add('open');
+}
+
+function closeFriendReqPopup() {
+  document.getElementById('friend-req-overlay').classList.remove('open');
+  friendReqTarget = null;
+}
+
+async function confirmFriendRequest() {
+  if (!friendReqTarget) return;
+  const de = state.lang === 'de';
+  try {
+    await sbFetch('friendships', {
+      method: 'POST',
+      body: JSON.stringify({ requester_id: state.currentUser.id, receiver_id: friendReqTarget.id }),
+      prefer: 'return=minimal'
+    });
+    closeFriendReqPopup();
+    showToast(de ? 'Anfrage gesendet ✓' : 'Request sent ✓', 'success');
+    // Badge check
+    checkAndAwardBadges({ mode: 'friend_added' });
+  } catch(e) {
+    closeFriendReqPopup();
+    showToast(de ? 'Bereits eine Anfrage gesendet.' : 'Request already sent.', 'error');
+  }
+}
+
+// ---- Anfrage annehmen/ablehnen ----
+async function acceptFriendRequest(friendshipId) {
+  const de = state.lang === 'de';
+  try {
+    await sbFetch(`friendships?id=eq.${friendshipId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'accepted' }),
+      prefer: 'return=minimal'
+    });
+    showToast(de ? 'Freund hinzugefügt! 🎉' : 'Friend added! 🎉', 'success');
+    checkAndAwardBadges({ mode: 'friend_added' });
+    loadFriendRequests();
+  } catch(e) { showToast(de ? 'Fehler.' : 'Error.', 'error'); }
+}
+
+async function declineFriendRequest(friendshipId) {
+  const de = state.lang === 'de';
+  try {
+    await sbFetch(`friendships?id=eq.${friendshipId}`, { method: 'DELETE', prefer: 'return=minimal' });
+    showToast(de ? 'Anfrage abgelehnt.' : 'Request declined.', 'info');
+    loadFriendRequests();
+  } catch(e) { showToast(de ? 'Fehler.' : 'Error.', 'error'); }
+}
+
+// ---- Freund entfernen ----
+async function confirmRemoveFriend(friendId, friendUsername) {
+  const de = state.lang === 'de';
+  if (!confirm(de ? `${friendUsername} als Freund entfernen?` : `Remove ${friendUsername} as friend?`)) return;
+  try {
+    const userId = state.currentUser.id;
+    // Beide Richtungen löschen
+    await sbFetch(`friendships?requester_id=eq.${userId}&receiver_id=eq.${friendId}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await sbFetch(`friendships?requester_id=eq.${friendId}&receiver_id=eq.${userId}`, { method: 'DELETE', prefer: 'return=minimal' });
+    showToast(de ? 'Freund entfernt.' : 'Friend removed.', 'info');
+    loadFriendsList();
+  } catch(e) { showToast(de ? 'Fehler.' : 'Error.', 'error'); }
+}
+
+// ---- Freundesprofil ----
+async function openFriendProfile(friendId, friendUsername) {
+  currentFriendProfileId = friendId;
+  currentFriendProfileName = friendUsername;
+  const de = state.lang === 'de';
+  setEl('friend-profile-avatar', friendUsername[0].toUpperCase());
+  setEl('friend-profile-username', friendUsername);
+  setEl('friend-profile-email', '…');
+  document.getElementById('friend-stats-grid').innerHTML = '<div class="lb-empty">⏳</div>';
+  document.getElementById('friend-badge-grid').innerHTML = '<div class="lb-empty">⏳</div>';
+  navigate('friend-profile');
+
+  try {
+    // Email laden
+    const uRows = await sbFetch(`users?id=eq.${friendId}&select=email`);
+    setEl('friend-profile-email', uRows?.[0]?.email || '—');
+
+    // Stats laden (beide Sprachen)
+    const sDE = await sbFetch(`stats?user_id=eq.${friendId}&lang=eq.de`);
+    const sEN = await sbFetch(`stats?user_id=eq.${friendId}&lang=eq.en`);
+    const sd = sDE?.[0], se = sEN?.[0];
+    const streak     = Math.max(sd?.streak || 0, se?.streak || 0);
+    const bestStreak = Math.max(sd?.best_streak || 0, se?.best_streak || 0);
+    const played     = (sd?.played || 0) + (se?.played || 0);
+    const won        = (sd?.won || 0) + (se?.won || 0);
+    const totalAtt   = (sd?.total_attempts || 0) + (se?.total_attempts || 0);
+    const avg        = played > 0 ? (totalAtt / played).toFixed(1) : '—';
+    const winrate    = played > 0 ? Math.round((won / played) * 100) + '%' : '0%';
+
+    document.getElementById('friend-stats-grid').innerHTML = `
+      <div class="stat-card streak-card"><span class="value">${streak}</span><span class="label">${de ? 'Aktuelle Serie 🔥' : 'Current Streak 🔥'}</span></div>
+      <div class="stat-card streak-card"><span class="value">${bestStreak}</span><span class="label">${de ? 'Längste Serie 🏆' : 'Best Streak 🏆'}</span></div>
+      <div class="stat-card"><span class="value">${played}</span><span class="label">${de ? 'Spiele gespielt' : 'Games Played'}</span></div>
+      <div class="stat-card"><span class="value">${won}</span><span class="label">${de ? 'Gewonnen' : 'Won'}</span></div>
+      <div class="stat-card"><span class="value">${avg}</span><span class="label">Ø ${de ? 'Versuche' : 'Attempts'}</span></div>
+      <div class="stat-card"><span class="value">${winrate}</span><span class="label">${de ? 'Gewinnrate' : 'Win Rate'}</span></div>`;
+
+    // Badges
+    const earned = await loadEarnedBadges(friendId);
+    const grid = document.getElementById('friend-badge-grid');
+    // renderBadges nutzt state.lang, funktioniert direkt
+    const lang = state.lang;
+    const tierOrder = { gold: 0, silver: 1, bronze: 2 };
+    const groups = {};
+    BADGE_DEFS.forEach(b => {
+      if (!groups[b.group]) groups[b.group] = { defs: [], earned: null };
+      groups[b.group].defs.push(b);
+      if (earned.has(b.id)) groups[b.group].earned = b;
+    });
+    const sortedGroups = Object.values(groups).sort((a, b) => {
+      const aE = !!a.earned, bE = !!b.earned;
+      if (aE !== bE) return bE - aE;
+      if (aE && bE) return tierOrder[a.earned.tier] - tierOrder[b.earned.tier];
+      return 0;
+    });
+    grid.innerHTML = sortedGroups.map(g => {
+      const tiers = ['gold','silver','bronze'];
+      let display = null;
+      for (const t of tiers) { const f = g.defs.find(d => d.tier === t && earned.has(d.id)); if (f) { display = f; break; } }
+      const locked = !display;
+      const def = display || g.defs[g.defs.length - 1];
+      const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
+      const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
+      const tooltipBase = locked ? (g.defs.find(d => d.tier === 'bronze')?.desc[lang] || def.desc[lang]) : def.desc[lang];
+      return `<div class="badge-item${locked ? '' : ' earned'}" onclick="toggleBadgeTooltip(this,'${def.name[lang]}','${tooltipBase}')">
+        <div class="badge-icon-wrap ${tierClass}">${def.emoji}${tierLabel}</div>
+        <div class="badge-label">${def.name[lang]}</div>
+        <div class="badge-tooltip"></div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('Friend profile error:', e); }
+}
+
+// ---- Leaderboard Friend-Button ----
+// Patch fetchAndRenderList um Friend-Buttons hinzuzufügen
+const _origFetchAndRenderList = fetchAndRenderList;
+fetchAndRenderList = async function() {
+  await _origFetchAndRenderList();
+  if (!state.currentUser) return;
+  try {
+    const friendIds = await getFriendIds(state.currentUser.id);
+    document.querySelectorAll('.lb-entry[data-uid]').forEach(entry => {
+      const uid = entry.dataset.uid;
+      if (uid === state.currentUser.id) return;
+      const isFriend = friendIds.has(uid);
+      const btn = document.createElement('button');
+      btn.className = `lb-friend-btn${isFriend ? ' is-friend' : ''}`;
+      btn.title = isFriend
+        ? (state.lang === 'de' ? 'Profil ansehen' : 'View profile')
+        : (state.lang === 'de' ? 'Freund hinzufügen' : 'Add friend');
+      btn.textContent = isFriend ? '👥' : '➕';
+      const uname = entry.querySelector('.lb-name')?.childNodes[0]?.textContent?.trim() || '?';
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (isFriend) openFriendProfile(uid, uname);
+        else openFriendReqPopup(uid, uname);
+      };
+      entry.appendChild(btn);
+    });
+  } catch(e) {}
+};
+
+document.addEventListener('click', async (e) => {
+  const span = e.target.closest('.lb-name-click');
+  if (!span || !state.currentUser) return;
+  const uid = span.dataset.uid;
+  const uname = span.dataset.name;
+  if (uid === state.currentUser.id) return;
+  try {
+    const friendIds = await getFriendIds(state.currentUser.id);
+    if (friendIds.has(uid)) openFriendProfile(uid, uname);
+    else openFriendReqPopup(uid, uname);
+  } catch(e) {}
+});
 
 loadData();
