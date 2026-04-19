@@ -477,6 +477,19 @@
   </div>
 </div>
 
+<!-- REMOVE FRIEND POPUP -->
+<div class="badge-popup-overlay" id="remove-friend-overlay" onclick="closeRemoveFriendPopup()">
+  <div class="badge-popup" onclick="event.stopPropagation()">
+    <div class="badge-popup-emoji">👋</div>
+    <div class="badge-popup-name" id="remove-friend-name">—</div>
+    <div class="badge-popup-desc" id="remove-friend-desc">—</div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeRemoveFriendPopup()" style="flex:1" id="remove-friend-cancel">Abbrechen</button>
+      <button class="btn btn-primary" onclick="executeRemoveFriend()" style="flex:1" id="remove-friend-confirm">Entfernen</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== BADGE POPUP ===== -->
 <div class="badge-popup-overlay" id="badge-popup-overlay" onclick="closeBadgePopup()">
   <div class="badge-popup" id="badge-popup" onclick="event.stopPropagation()">

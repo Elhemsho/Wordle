@@ -1,8 +1,6 @@
 Fixes:
 - octordel/quordle feste tastatur???
-- im leaderborad, das + oder freunde icon komplett weg
-- bei freund profil sprache wechseln soll die stats auch direkt wechseln abhänigg von der sprache.
-- badges sollen nicht sprach abhängig sein, anpassen mit wins usw zusammenrechnen
+- 3 badges an profil anheften
 
 Ideen:
 - registrieren - passwort zurücksetzen / email bestätigen

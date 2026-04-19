@@ -328,6 +328,7 @@ async function switchLanguage(lang) {
   }
   else if (pageId === 'page-profile') setupProfilePage();
   else if (pageId === 'page-leaderboard') setupLeaderboardPage();
+  else if (pageId === 'page-friends') setupFriendsPage();
   else if (pageId === 'page-friend-profile') openFriendProfile(currentFriendProfileId, currentFriendProfileName);
 }
 
@@ -362,6 +363,7 @@ function updateHeaderAuth() {
     userDiv.style.display = 'none';
     if (langSwitcher) langSwitcher.style.display = 'none'; 
   }
+  updateFriendRequestBadge();
 }
 
 function openModal(type) {
@@ -1064,18 +1066,6 @@ async function fetchAndRenderList() {
           ${hi}
         </div>`;
       }).join('');
-    }
-
-    // Freund-Icons nach dem Rendern einfügen
-    if (state.currentUser) {
-      try {
-        const friendIds = await getFriendIds(state.currentUser.id);
-        document.querySelectorAll('.lb-name-click').forEach(span => {
-          if (friendIds.has(span.dataset.uid)) {
-            span.insertAdjacentHTML('afterend', '<span class="lb-friend-icon">👥</span>');
-          }
-        });
-      } catch(e) {}
     }
 
   } catch(e) {
@@ -2049,6 +2039,7 @@ async function setupFriendsPage() {
   if (!state.currentUser) { navigate('home'); return; }
   updateFriendsLanguage();
   friendsSetTab('list');
+  updateFriendRequestBadge();
 }
 
 function updateFriendsLanguage() {
@@ -2093,13 +2084,10 @@ async function loadFriendsList() {
       const uRows = await sbFetch(`users?id=eq.${fid}&select=id,username`);
       const u = uRows?.[0];
       if (!u) return null;
-      const sDE = await sbFetch(`stats?user_id=eq.${fid}&lang=eq.de&select=won,played,total_attempts`);
-      const sEN = await sbFetch(`stats?user_id=eq.${fid}&lang=eq.en&select=won,played,total_attempts`);
-      const sd = sDE?.[0], se = sEN?.[0];
-      const totalPlayed = (sd?.played || 0) + (se?.played || 0);
-      const totalAttempts = (sd?.total_attempts || 0) + (se?.total_attempts || 0);
-      const avg = totalPlayed > 0 ? (totalAttempts / totalPlayed).toFixed(1) : '—';
-      // Heutiger Eintrag
+      const sLang = await sbFetch(`stats?user_id=eq.${fid}&lang=eq.${state.lang}&select=won,played,total_attempts`);
+const sl = sLang?.[0];
+const avg = sl?.played > 0 ? (sl.total_attempts / sl.played).toFixed(1) : '—';
+// Heutiger Eintrag
       const lbDE = await sbFetch(`leaderboard?user_id=eq.${fid}&day_key=eq.${todayDE}&select=attempts`);
       const lbEN = await sbFetch(`leaderboard?user_id=eq.${fid}&day_key=eq.${todayEN}&select=attempts`);
       const todayAttempts = lbDE?.[0]?.attempts || lbEN?.[0]?.attempts || null;
@@ -2252,8 +2240,14 @@ async function acceptFriendRequest(friendshipId) {
     });
     showToast(de ? 'Freund hinzugefügt! 🎉' : 'Friend added! 🎉', 'success');
     checkAndAwardBadges({ mode: 'friend_added' });
+    const req = await sbFetch(`friendships?id=eq.${friendshipId}&select=requester_id`);
+if (req?.[0]) {
+  const tmpUser = { id: req[0].requester_id };
+  checkAndAwardBadgesForUser(tmpUser);
+}
     loadFriendRequests();
   } catch(e) { showToast(de ? 'Fehler.' : 'Error.', 'error'); }
+  updateFriendRequestBadge();
 }
 
 async function declineFriendRequest(friendshipId) {
@@ -2263,15 +2257,34 @@ async function declineFriendRequest(friendshipId) {
     showToast(de ? 'Anfrage abgelehnt.' : 'Request declined.', 'info');
     loadFriendRequests();
   } catch(e) { showToast(de ? 'Fehler.' : 'Error.', 'error'); }
+  updateFriendRequestBadge();
 }
 
-// ---- Freund entfernen ----
-async function confirmRemoveFriend(friendId, friendUsername) {
+//Freund entfernen
+let removeFriendTarget = null;
+
+function confirmRemoveFriend(friendId, friendUsername) {
+  removeFriendTarget = { id: friendId, username: friendUsername };
   const de = state.lang === 'de';
-  if (!confirm(de ? `${friendUsername} als Freund entfernen?` : `Remove ${friendUsername} as friend?`)) return;
+  setEl('remove-friend-name', friendUsername);
+  setEl('remove-friend-desc', de ? 'Als Freund entfernen?' : 'Remove as friend?');
+  setEl('remove-friend-confirm', de ? 'Entfernen' : 'Remove');
+  setEl('remove-friend-cancel', de ? 'Abbrechen' : 'Cancel');
+  document.getElementById('remove-friend-overlay').classList.add('open');
+}
+
+function closeRemoveFriendPopup() {
+  document.getElementById('remove-friend-overlay').classList.remove('open');
+  removeFriendTarget = null;
+}
+
+async function executeRemoveFriend() {
+  if (!removeFriendTarget) return;
+  const de = state.lang === 'de';
+  const userId = state.currentUser.id;
+  const friendId = removeFriendTarget.id;
+  closeRemoveFriendPopup();
   try {
-    const userId = state.currentUser.id;
-    // Beide Richtungen löschen
     await sbFetch(`friendships?requester_id=eq.${userId}&receiver_id=eq.${friendId}`, { method: 'DELETE', prefer: 'return=minimal' });
     await sbFetch(`friendships?requester_id=eq.${friendId}&receiver_id=eq.${userId}`, { method: 'DELETE', prefer: 'return=minimal' });
     showToast(de ? 'Freund entfernt.' : 'Friend removed.', 'info');
@@ -2297,16 +2310,15 @@ async function openFriendProfile(friendId, friendUsername) {
     setEl('friend-profile-email', uRows?.[0]?.email || '—');
 
     // Stats laden (beide Sprachen)
-    const sDE = await sbFetch(`stats?user_id=eq.${friendId}&lang=eq.de`);
-    const sEN = await sbFetch(`stats?user_id=eq.${friendId}&lang=eq.en`);
-    const sd = sDE?.[0], se = sEN?.[0];
-    const streak     = Math.max(sd?.streak || 0, se?.streak || 0);
-    const bestStreak = Math.max(sd?.best_streak || 0, se?.best_streak || 0);
-    const played     = (sd?.played || 0) + (se?.played || 0);
-    const won        = (sd?.won || 0) + (se?.won || 0);
-    const totalAtt   = (sd?.total_attempts || 0) + (se?.total_attempts || 0);
-    const avg        = played > 0 ? (totalAtt / played).toFixed(1) : '—';
-    const winrate    = played > 0 ? Math.round((won / played) * 100) + '%' : '0%';
+    const sRows = await sbFetch(`stats?user_id=eq.${friendId}&lang=eq.${state.lang}`);
+const s = sRows?.[0];
+const streak     = s?.streak || 0;
+const bestStreak = s?.best_streak || 0;
+const played     = s?.played || 0;
+const won        = s?.won || 0;
+const totalAtt   = s?.total_attempts || 0;
+const avg        = played > 0 ? (totalAtt / played).toFixed(1) : '—';
+const winrate    = played > 0 ? Math.round((won / played) * 100) + '%' : '0%';
 
     document.getElementById('friend-stats-grid').innerHTML = `
       <div class="stat-card streak-card"><span class="value">${streak}</span><span class="label">${de ? 'Aktuelle Serie 🔥' : 'Current Streak 🔥'}</span></div>
@@ -2360,23 +2372,10 @@ fetchAndRenderList = async function() {
   if (!state.currentUser) return;
   try {
     const friendIds = await getFriendIds(state.currentUser.id);
-    document.querySelectorAll('.lb-entry[data-uid]').forEach(entry => {
-      const uid = entry.dataset.uid;
-      if (uid === state.currentUser.id) return;
-      const isFriend = friendIds.has(uid);
-      const btn = document.createElement('button');
-      btn.className = `lb-friend-btn${isFriend ? ' is-friend' : ''}`;
-      btn.title = isFriend
-        ? (state.lang === 'de' ? 'Profil ansehen' : 'View profile')
-        : (state.lang === 'de' ? 'Freund hinzufügen' : 'Add friend');
-      btn.textContent = isFriend ? '👥' : '➕';
-      const uname = entry.querySelector('.lb-name')?.childNodes[0]?.textContent?.trim() || '?';
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        if (isFriend) openFriendProfile(uid, uname);
-        else openFriendReqPopup(uid, uname);
-      };
-      entry.appendChild(btn);
+    document.querySelectorAll('.lb-name-click').forEach(span => {
+      if (friendIds.has(span.dataset.uid)) {
+        span.insertAdjacentHTML('afterend', '<span class="lb-friend-icon">👥</span>');
+      }
     });
   } catch(e) {}
 };
@@ -2386,12 +2385,61 @@ document.addEventListener('click', async (e) => {
   if (!span || !state.currentUser) return;
   const uid = span.dataset.uid;
   const uname = span.dataset.name;
-  if (uid === state.currentUser.id) return;
+  if (uid === state.currentUser.id) { navigate('profile'); return; }
   try {
     const friendIds = await getFriendIds(state.currentUser.id);
     if (friendIds.has(uid)) openFriendProfile(uid, uname);
     else openFriendReqPopup(uid, uname);
   } catch(e) {}
 });
+
+async function checkAndAwardBadgesForUser(targetUser) {
+  const userId = targetUser.id;
+  const earned = await loadEarnedBadgesForUser(userId);
+  if (earned.has('first_friend')) return;
+  const friendIds = await getFriendIds(userId);
+  if (friendIds.size >= 1) {
+    await awardBadge(userId, 'first_friend');
+  }
+}
+
+async function loadEarnedBadgesForUser(userId) {
+  try {
+    const rows = await sbFetch(`user_badges?user_id=eq.${userId}&select=badge_id`);
+    return new Set((rows || []).map(r => r.badge_id));
+  } catch { return new Set(); }
+}
+
+async function updateFriendRequestBadge() {
+  if (!state.currentUser) return;
+  try {
+    const reqs = await sbFetch(`friendships?receiver_id=eq.${state.currentUser.id}&status=eq.pending&select=id`);
+    const count = reqs?.length || 0;
+
+    // Profil-Button im Header
+    const btnProfile = document.getElementById('btn-profile');
+    if (btnProfile) {
+      const existing = btnProfile.querySelector('.notif-badge');
+      if (existing) existing.remove();
+      if (count > 0) btnProfile.insertAdjacentHTML('beforeend', `<span class="notif-badge">${count}</span>`);
+    }
+
+    // Freunde-Button im Profil
+    const btnFriends = document.getElementById('btn-friends');
+    if (btnFriends) {
+      const existing = btnFriends.querySelector('.notif-badge');
+      if (existing) existing.remove();
+      if (count > 0) btnFriends.insertAdjacentHTML('beforeend', `<span class="notif-badge">${count}</span>`);
+    }
+
+    // "Hinzufügen" Tab auf der Freunde-Seite
+    const tabAdd = document.getElementById('friends-tab-add');
+    if (tabAdd) {
+      const existing = tabAdd.querySelector('.notif-badge');
+      if (existing) existing.remove();
+      if (count > 0) tabAdd.insertAdjacentHTML('beforeend', `<span class="notif-badge">${count}</span>`);
+    }
+  } catch(e) {}
+}
 
 loadData();

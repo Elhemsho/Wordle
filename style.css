@@ -1190,3 +1190,21 @@ white-space: normal;
 }
 
 #page-friend-profile { align-items: center; padding: 40px 24px; }
+
+.notif-badge {
+  position: absolute;
+  top: -5px; right: -5px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 16px; height: 16px;
+  border-radius: 100px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+  font-family: var(--font-mono);
+}
+
+.btn-icon { position: relative; }
+.lb-tab   { position: relative; }
