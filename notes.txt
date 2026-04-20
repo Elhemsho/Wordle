@@ -4,3 +4,6 @@ Fixes:
 Ideen:
 - registrieren - passwort zurücksetzen / email bestätigen
 - white mode
+- Level mit Fortschrittsbalken im Profil
+- freund herausfordern Wordle Duell — gleiche Runde, wer schneller löst gewinnt (nutzt dein Freundessystem)
+- hard mode (nur perfekte guesses)

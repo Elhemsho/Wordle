@@ -780,7 +780,7 @@ header {
   /* Header */
   header        { padding: 8px 12px; gap: 6px; }
   .header-left  { gap: 8px; }
-  .logo         { font-size: 0.95rem; letter-spacing: 0.1em; }
+  .logo         { font-size: 1.0rem; letter-spacing: 0.07em; }
   .btn-hamburger { width: 32px; height: 32px; font-size: 1rem; }
   #header-auth  { gap: 4px; }
   header .btn, 
@@ -938,7 +938,7 @@ header        { padding: 6px 8px; gap: 4px; }
   .header-left  { gap: 6px; }
   .header-right { gap: 6px !important; }
 #header-user  { gap: 8px !important; }
-  .logo         { font-size: 0.8rem; letter-spacing: 0.06em; }
+  .logo         { font-size: 1rem; letter-spacing: 0.06em; }
   .btn-hamburger { width: 28px; height: 28px; font-size: 0.9rem; }
   header .btn,
   #header-auth .btn,

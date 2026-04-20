@@ -759,7 +759,8 @@ if (s && s.last_played_date === yesterday.toDateString()) streak++;
       checkAndAwardBadges({
   mode: 'daily',
   won,
-  guesses: won ? state.guesses.length : 7
+  guesses: won ? state.guesses.length : 7,
+  timeSec: elapsedSec
 });
     } else { streak = 0; totalAttempts += 6;}
 
@@ -1699,6 +1700,11 @@ const BADGE_DEFS = [
   // --- Einmalig: Glückspilz (1 Versuch) ---
   { id: 'lucky',   group: 'lucky',   tier: 'gold', emoji: '🍀', name: { de: 'Glückspilz',    en: 'Lucky Guess' },   desc: { de: 'Daily in 1 Versuch gelöst',           en: 'Solved daily in 1 attempt' } },
 
+// --- Unter 1min
+{ id: 'speed_bronze', group: 'speed', tier: 'bronze', emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: 'Daily in unter 1 Min gelöst',       en: 'Solved daily in under 1 min' },      threshold: 1 },
+{ id: 'speed_silver', group: 'speed', tier: 'silver', emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: '3× Daily in unter 1 Min gelöst',  en: '3× daily solved in under 1 min' },   threshold: 3 },
+{ id: 'speed_gold',   group: 'speed', tier: 'gold',   emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: '5× Daily in unter 1 Min gelöst',  en: '5× daily solved in under 1 min' },   threshold: 5 },
+
   // --- Einmalig: Nachteule ---
   { id: 'owl',     group: 'owl',     tier: 'gold', emoji: '🦉', name: { de: 'Nachteule',      en: 'Night Owl' },     desc: { de: 'Daily 5 Min vor Mitternacht gelöst',  en: 'Solved daily 5 min before midnight' } },
 
@@ -1839,6 +1845,22 @@ async function checkAndAwardBadges(context = {}) {
 
   // Glückspilz
   if (context.guesses === 1 && context.mode === 'daily') await tryAward('lucky');
+
+if (context.mode === 'daily' && context.won && context.timeSec < 60) {
+  try {
+    const uRows = await sbFetch(`users?id=eq.${userId}&select=speed_wins`);
+    const current = uRows?.[0]?.speed_wins || 0;
+    const newCount = current + 1;
+    await sbFetch(`users?id=eq.${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ speed_wins: newCount }),
+      prefer: 'return=minimal'
+    });
+    if (newCount >= 1) await tryAward('speed_bronze');
+    if (newCount >= 3) await tryAward('speed_silver');
+    if (newCount >= 5) await tryAward('speed_gold');
+  } catch {}
+}
 
   // Nachteule: 5 Min vor Mitternacht = nach 23:55
   if (context.mode === 'daily' && context.won) {
@@ -2022,6 +2044,14 @@ async function backfillBadges() {
     if (funWins.octordle >= 5)  await tryAward('octordle_bronze');
     if (funWins.octordle >= 25) await tryAward('octordle_silver');
     if (funWins.octordle >= 50) await tryAward('octordle_gold');
+
+try {
+  const uRows = await sbFetch(`users?id=eq.${userId}&select=speed_wins`);
+  const speedCount = uRows?.[0]?.speed_wins || 0;
+  if (speedCount >= 1) await tryAward('speed_bronze');
+  if (speedCount >= 3) await tryAward('speed_silver');
+  if (speedCount >= 5) await tryAward('speed_gold');
+} catch {}
 
     newBadges.forEach(def => queueBadgePopup(def));
     if (newBadges.length > 0) renderBadges(earned);
