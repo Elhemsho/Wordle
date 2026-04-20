@@ -1068,6 +1068,35 @@ async function fetchAndRenderList() {
       }).join('');
     }
 
+    // Pinned Badges im Leaderboard
+    try {
+      const allUids = [...document.querySelectorAll('.lb-name-click')].map(s => s.dataset.uid).filter(Boolean);
+      await Promise.all(allUids.map(async uid => {
+        const pinned = await loadPinnedBadges(uid);
+        if (!pinned.length) return;
+        const span = document.querySelector(`.lb-name-click[data-uid="${uid}"]`);
+        if (!span) return;
+        const html = pinned.map(bid => {
+          const def = getBadgeDef(bid);
+          if (!def) return '';
+          return `<span class="lb-pinned-badge tier-${def.tier}" title="${def.name[state.lang]}">${def.emoji}</span>`;
+        }).join('');
+        span.insertAdjacentHTML('afterend', `<span class="lb-pinned">${html}</span>`);
+      }));
+    } catch(e) {}
+
+    // Freund-Icons
+    if (state.currentUser) {
+      try {
+        const friendIds = await getFriendIds(state.currentUser.id);
+        document.querySelectorAll('.lb-name-click').forEach(span => {
+          if (friendIds.has(span.dataset.uid)) {
+            span.insertAdjacentHTML('afterend', '<span class="lb-friend-icon">👥</span>');
+          }
+        });
+      } catch(e) {}
+    }
+
   } catch(e) {
     const l = document.getElementById('leaderboard-list');
     if (l) l.innerHTML = `<div class="lb-empty">${de ? 'Fehler beim Laden.' : 'Error loading.'}</div>`;
@@ -2441,5 +2470,93 @@ async function updateFriendRequestBadge() {
     }
   } catch(e) {}
 }
+
+// ============================================================
+//  PINNED BADGES
+// ============================================================
+
+async function loadPinnedBadges(userId) {
+  try {
+    const rows = await sbFetch(`users?id=eq.${userId}&select=pinned_badges`);
+    return rows?.[0]?.pinned_badges || [];
+  } catch { return []; }
+}
+
+async function savePinnedBadges(userId, pinned) {
+  try {
+    await sbFetch(`users?id=eq.${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pinned_badges: pinned }),
+      prefer: 'return=minimal'
+    });
+  } catch(e) { console.warn('pinned save error:', e); }
+}
+
+async function togglePinBadge(badgeId) {
+  if (!state.currentUser) return;
+  const userId = state.currentUser.id;
+  const de = state.lang === 'de';
+  let pinned = await loadPinnedBadges(userId);
+
+  if (pinned.includes(badgeId)) {
+    // Entpinnen
+    pinned = pinned.filter(b => b !== badgeId);
+    showToast(de ? 'Badge entfernt.' : 'Badge unpinned.', 'info', 1500);
+  } else {
+    if (pinned.length >= 3) {
+      showToast(de ? 'Max. 3 Badges anheftbar.' : 'Max. 3 badges can be pinned.', 'error', 2000);
+      return;
+    }
+    pinned.push(badgeId);
+    showToast(de ? 'Badge angeheftet! 📌' : 'Badge pinned! 📌', 'success', 1500);
+  }
+
+  await savePinnedBadges(userId, pinned);
+  // Profil neu rendern
+  const earned = await loadEarnedBadges(userId);
+  renderBadges(earned);
+  renderProfilePinned(pinned);
+}
+
+function renderProfilePinned(pinned) {
+  const container = document.getElementById('profile-pinned');
+  if (!container) return;
+  const de = state.lang === 'de';
+  container.innerHTML = [0,1,2].map(i => {
+    const badgeId = pinned[i];
+    const def = badgeId ? getBadgeDef(badgeId) : null;
+    if (!def) {
+      return `<div class="pinned-badge-slot" title="${de ? 'Badge anheften' : 'Pin a badge'}">＋</div>`;
+    }
+    const tierClass = `tier-${def.tier}`;
+    const dotLabel = def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G';
+    return `<div class="pinned-badge-slot filled badge-icon-wrap ${tierClass}" title="${def.name[de ? 'de' : 'en']}" onclick="togglePinBadge('${def.id}')">
+      ${def.emoji}
+      <div class="badge-tier-dot">${dotLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+// renderBadges patchen um Pin-Status + Klick hinzuzufügen
+const _origRenderBadges = renderBadges;
+renderBadges = async function(earnedSet) {
+  await _origRenderBadges(earnedSet);
+  if (!state.currentUser) return;
+  const pinned = await loadPinnedBadges(state.currentUser.id);
+  // Pin-Indikator auf geearnten Badges
+  document.querySelectorAll('.badge-item.earned').forEach(el => {
+    const onclick = el.getAttribute('onclick') || '';
+    const match = onclick.match(/toggleBadgeTooltip\(this,'([^']+)','([^']+)'\)/);
+    if (!match) return;
+    // Badge-ID rausfinden über Name-Matching
+    const def = BADGE_DEFS.find(b => b.name[state.lang] === match[1]);
+    if (!def) return;
+    if (pinned.includes(def.id)) el.classList.add('pinned');
+    // Langer Klick oder Doppelklick zum Pinnen
+    el.ondblclick = () => togglePinBadge(def.id);
+    el.title = `${match[2]} · ${state.lang === 'de' ? 'Doppelklick zum Anheften' : 'Double-click to pin'}`;
+  });
+  renderProfilePinned(pinned);
+};
 
 loadData();

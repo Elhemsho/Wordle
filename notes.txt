@@ -1,6 +1,8 @@
 Fixes:
 - octordel/quordle feste tastatur???
 - 3 badges an profil anheften
+- all time leaderboard text top 10 today deutsh übersetzugn
+- bei kleinen bildschirmen you im leaderboard soll nicht n zeile drunter sein
 
 Ideen:
 - registrieren - passwort zurücksetzen / email bestätigen
