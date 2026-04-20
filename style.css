@@ -1267,3 +1267,8 @@ white-space: normal;
   .pinned-badge-slot { width: 36px; height: 36px; font-size: 1.1rem; }
   .profile-pinned { gap: 4px; }
 }
+
+.badge-item {
+  user-select: none;
+  -webkit-user-select: none;
+}

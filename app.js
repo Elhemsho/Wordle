@@ -867,7 +867,7 @@ const unameEl = document.getElementById('profile-username');
 unameEl.innerHTML = `${state.currentUser.username} <button class="edit-icon-btn" title="${editTitle}" onclick="updateUsernameOrEmail('username')">✏️</button>`;
 
 const emailEl = document.getElementById('profile-email');
-emailEl.innerHTML = `${state.currentUser.email} · ${flag} ${langName} <button class="edit-icon-btn" title="${editTitle}" onclick="updateUsernameOrEmail('email')">✏️</button>`;
+emailEl.innerHTML = `${state.currentUser.email} <button class="edit-icon-btn" title="${editTitle}" onclick="updateUsernameOrEmail('email')">✏️</button>`;
   ['stat-streak','stat-best-streak','stat-played','stat-won'].forEach(id => document.getElementById(id).textContent = '…');
   document.getElementById('stat-avg').textContent = '…';
   document.getElementById('stat-winrate').textContent = '…';
@@ -1896,47 +1896,53 @@ async function renderBadges(earnedSet) {
   const grid = document.getElementById('badge-grid');
   if (!grid) return;
   const lang = state.lang;
+  const pinned = state.currentUser ? await loadPinnedBadges(state.currentUser.id) : [];
+  renderProfilePinned(pinned);
 
-  // Gruppen zusammenfassen: höchstes verdientes Tier anzeigen, sonst locked
+  const tierOrder = { gold: 0, silver: 1, bronze: 2 };
   const groups = {};
   BADGE_DEFS.forEach(b => {
     if (!groups[b.group]) groups[b.group] = { defs: [], earned: null };
     groups[b.group].defs.push(b);
     if (earnedSet.has(b.id)) groups[b.group].earned = b;
   });
-const tierOrder = { gold: 0, silver: 1, bronze: 2 };
-const sortedGroups = Object.values(groups).sort((a, b) => {
-  const aEarned = !!a.earned;
-  const bEarned = !!b.earned;
-  if (aEarned !== bEarned) return bEarned - aEarned;
-  if (aEarned && bEarned) return tierOrder[a.earned.tier] - tierOrder[b.earned.tier];
-  return 0;
-});
+  const sortedGroups = Object.values(groups).sort((a, b) => {
+    const aEarned = !!a.earned;
+    const bEarned = !!b.earned;
+    if (aEarned !== bEarned) return bEarned - aEarned;
+    if (aEarned && bEarned) return tierOrder[a.earned.tier] - tierOrder[b.earned.tier];
+    return 0;
+  });
 
-grid.innerHTML = sortedGroups.map(g => {
-  const tiers = ['gold','silver','bronze'];
-  let display = null;
-  for (const t of tiers) {
-    const found = g.defs.find(d => d.tier === t && earnedSet.has(d.id));
-    if (found) { display = found; break; }
-  }
-  const locked = !display;
-  const def = display || g.defs[g.defs.length - 1];
-  const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
-  const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
-  const nextDef = locked
-    ? g.defs.find(d => d.tier === 'bronze')
-    : g.defs.find(d => !earnedSet.has(d.id) && tierOrder[d.tier] < tierOrder[def.tier]);
-  const tooltipBase = locked ? (nextDef ? nextDef.desc[lang] : def.desc[lang]) : def.desc[lang];
-  return `<div class="badge-item${locked ? '' : ' earned'}" title="" onclick="toggleBadgeTooltip(this, '${def.name[lang]}', '${tooltipBase}')">
-  <div class="badge-icon-wrap ${tierClass}">
-    ${def.emoji}
-    ${tierLabel}
-  </div>
-  <div class="badge-label">${def.name[lang]}</div>
-  <div class="badge-tooltip"></div>
-</div>`;
-}).join('');
+  grid.innerHTML = sortedGroups.map(g => {
+    const tiers = ['gold','silver','bronze'];
+    let display = null;
+    for (const t of tiers) {
+      const found = g.defs.find(d => d.tier === t && earnedSet.has(d.id));
+      if (found) { display = found; break; }
+    }
+    const locked = !display;
+    const def = display || g.defs[g.defs.length - 1];
+    const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
+    const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
+    const nextDef = locked
+      ? g.defs.find(d => d.tier === 'bronze')
+      : g.defs.find(d => !earnedSet.has(d.id) && tierOrder[d.tier] < tierOrder[def.tier]);
+    const tooltipBase = locked ? (nextDef ? nextDef.desc[lang] : def.desc[lang]) : def.desc[lang];
+    const isPinned = !locked && pinned.includes(def.id);
+
+    return `<div class="badge-item${locked ? '' : ' earned'}${isPinned ? ' pinned' : ''}"
+      onclick="${locked
+        ? `toggleBadgeTooltip(this,'${def.name[lang]}','${tooltipBase}')`
+        : `handleBadgeClick(this,'${def.id}','${def.name[lang]}','${tooltipBase}')`}">
+      <div class="badge-icon-wrap ${tierClass}">
+        ${def.emoji}
+        ${tierLabel}
+      </div>
+      <div class="badge-label">${def.name[lang]}</div>
+      <div class="badge-tooltip"></div>
+    </div>`;
+  }).join('');
 }
 
 // ---- Profil-Hook ----
@@ -2094,7 +2100,6 @@ async function loadFriendsList() {
   const userId = state.currentUser.id;
 
   try {
-    // Alle akzeptierten Freundschaften
     const sent = await sbFetch(`friendships?requester_id=eq.${userId}&status=eq.accepted&select=receiver_id`);
     const recv = await sbFetch(`friendships?receiver_id=eq.${userId}&status=eq.accepted&select=requester_id`);
     const friendIds = [
@@ -2106,7 +2111,6 @@ async function loadFriendsList() {
       return;
     }
 
-    // User-Daten + Stats laden
     const todayDE = getTodayKey('de');
     const todayEN = getTodayKey('en');
     const friends = await Promise.all(friendIds.map(async fid => {
@@ -2114,13 +2118,13 @@ async function loadFriendsList() {
       const u = uRows?.[0];
       if (!u) return null;
       const sLang = await sbFetch(`stats?user_id=eq.${fid}&lang=eq.${state.lang}&select=won,played,total_attempts`);
-const sl = sLang?.[0];
-const avg = sl?.played > 0 ? (sl.total_attempts / sl.played).toFixed(1) : '—';
-// Heutiger Eintrag
+      const sl = sLang?.[0];
+      const avg = sl?.played > 0 ? (sl.total_attempts / sl.played).toFixed(1) : '—';
       const lbDE = await sbFetch(`leaderboard?user_id=eq.${fid}&day_key=eq.${todayDE}&select=attempts`);
       const lbEN = await sbFetch(`leaderboard?user_id=eq.${fid}&day_key=eq.${todayEN}&select=attempts`);
       const todayAttempts = lbDE?.[0]?.attempts || lbEN?.[0]?.attempts || null;
-      return { id: fid, username: u.username, avg, todayAttempts };
+      const pinned = await loadPinnedBadges(fid) || [];
+      return { id: fid, username: u.username, avg, todayAttempts, pinned };
     }));
 
     const valid = friends.filter(Boolean).sort((a, b) => {
@@ -2134,15 +2138,23 @@ const avg = sl?.played > 0 ? (sl.total_attempts / sl.played).toFixed(1) : '—';
       const todayStr = f.todayAttempts
         ? (f.todayAttempts === 7 ? '✕' : `${f.todayAttempts}/6`)
         : '—';
+      const pinnedHtml = f.pinned.map(bid => {
+        const def = getBadgeDef(bid);
+        if (!def) return '';
+        return `<span class="lb-pinned-badge tier-${def.tier}" title="${def.name[state.lang]}">${def.emoji}</span>`;
+      }).join('');
       return `<div class="friend-entry lb-entry" onclick="openFriendProfile('${f.id}', '${f.username}')">
         <div class="lb-avatar">${f.username[0].toUpperCase()}</div>
-        <div class="friend-entry-name">${f.username}</div>
+        <div class="friend-entry-name">${f.username}<span class="lb-pinned">${pinnedHtml}</span></div>
         <div class="friend-entry-avg">${f.avg}</div>
         <div class="friend-entry-today">${todayStr}</div>
         <button class="btn btn-ghost" style="padding:5px 10px; font-size:0.75rem;" onclick="event.stopPropagation(); confirmRemoveFriend('${f.id}', '${f.username}')">${de ? 'Entfernen' : 'Remove'}</button>
       </div>`;
     }).join('');
-  } catch(e) { list.innerHTML = `<div class="lb-empty">${de ? 'Fehler beim Laden.' : 'Error loading.'}</div>`; }
+  } catch(e) {
+    console.error('loadFriendsList error:', e);
+    list.innerHTML = `<div class="lb-empty">${de ? 'Fehler beim Laden.' : 'Error loading.'}</div>`;
+  }
 }
 
 // ---- Anfragen laden ----
@@ -2558,5 +2570,39 @@ renderBadges = async function(earnedSet) {
   });
   renderProfilePinned(pinned);
 };
+
+function handleBadgeClick(el, badgeId, badgeName, badgeDesc) {
+  // Kurz-Tap → Tooltip, Lang-Tap / zweiter Klick auf bereits getipptes → Pin
+  if (el.dataset.tooltipOpen === '1') {
+    // zweiter Klick → pinnen
+    el.dataset.tooltipOpen = '0';
+    el.classList.remove('tooltip-open');
+    togglePinBadge(badgeId);
+  } else {
+    // erster Klick → Tooltip mit Pin-Hinweis
+    document.querySelectorAll('.badge-item.tooltip-open').forEach(b => {
+      b.classList.remove('tooltip-open');
+      b.dataset.tooltipOpen = '0';
+    });
+    const tip = el.querySelector('.badge-tooltip');
+    const de = state.lang === 'de';
+    if (tip) tip.innerHTML = badgeDesc + `<br><span style="color:var(--primary); font-size:0.68rem;">${
+  el.classList.contains('pinned')
+    ? (de ? 'Nochmal klicken zum Entfernen' : 'Click again to unpin')
+    : (de ? 'Nochmal klicken zum Anheften' : 'Click again to pin')
+}</span>`;
+    el.classList.add('tooltip-open');
+    el.dataset.tooltipOpen = '1';
+    setTimeout(() => {
+      document.addEventListener('click', function close(e) {
+        if (!el.contains(e.target)) {
+          el.classList.remove('tooltip-open');
+          el.dataset.tooltipOpen = '0';
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 10);
+  }
+}
 
 loadData();
