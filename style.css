@@ -459,7 +459,7 @@ header {
 #page-profile      { padding: 40px 24px; align-items: center; }
 .profile-container { max-width: 600px; width: 100%; animation: fadeUp 0.4s ease; }
 
-.profile-header { display: flex; align-items: center; gap: 24px; padding: 32px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; margin-bottom: 20px; position: relative; overflow: hidden; }
+.profile-header { display: flex; align-items: center; gap: 24px; padding: 32px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; margin-bottom: 20px; position: relative; overflow: visible; }
 .profile-header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--primary-light)); }
 .profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: #fff; box-shadow: 0 8px 32px var(--primary-glow); flex-shrink: 0; }
 .profile-info h2 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; }
@@ -497,8 +497,8 @@ header {
 .lb-rank       { font-family: var(--font-mono); font-size: 1rem; font-weight: 700; min-width: 32px; text-align: center; }
 .lb-rank-medal { font-size: 1.2rem; }
 .lb-avatar     { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
-.lb-name       { flex: 1; font-weight: 600; font-size: 0.95rem; }
-.lb-you        { font-size: 0.7rem; color: var(--primary); background: rgba(232,88,10,0.12); padding: 2px 8px; border-radius: 100px; margin-left: 6px; }
+.lb-name       { flex: 1; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; gap: 4px; overflow: hidden; }
+.lb-you        { font-size: 0.7rem; color: var(--primary); background: rgba(232,88,10,0.12); padding: 2px 8px; border-radius: 100px; margin-left: 0; flex-shrink: 0; white-space: nowrap; }
 .lb-attempts   { font-family: var(--font-mono); font-size: 0.95rem; color: var(--primary); font-weight: 700; min-width: 40px; text-align: center; }
 .lb-time       { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-muted); min-width: 56px; text-align: right; }
 .lb-empty      { padding: 48px; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
@@ -862,7 +862,11 @@ header {
   .segs-8 { grid-template-columns: repeat(2, 1fr) !important; grid-template-rows: repeat(4, 1fr) !important; height: 18px !important; }
 
   /* Profile */
-  .profile-header { flex-direction: column; text-align: center; padding: 24px 16px; }
+.profile-header { flex-wrap: wrap; flex-direction: row; padding: 16px; gap: 12px; align-items: center; }
+.profile-header .profile-avatar { flex-shrink: 0; order: 1; }
+.profile-header .profile-info { flex: 1; min-width: 0; order: 2; }
+.profile-header .friends-profile-btn { flex-shrink: 0; order: 2; margin-left: 0 !important; }
+.profile-header .profile-pinned { width: 100%; order: 3; justify-content: center; }
   .stats-grid     { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stat-card      { padding: 16px 12px; }
   .stat-card .value { font-size: 1.6rem; }
@@ -930,6 +934,19 @@ header {
   #funmode-keyboard .key      { min-width: 28px; height: 38px; }
 #funmode-keyboard .key.wide { min-width: 30px; font-size: 0.58rem; }
 .fun-key { min-height: 38px; }
+header        { padding: 6px 8px; gap: 4px; }
+  .header-left  { gap: 6px; }
+  .header-right { gap: 6px !important; }
+#header-user  { gap: 8px !important; }
+  .logo         { font-size: 0.8rem; letter-spacing: 0.06em; }
+  .btn-hamburger { width: 28px; height: 28px; font-size: 0.9rem; }
+  header .btn,
+  #header-auth .btn,
+  .header-right .btn { padding: 4px 7px !important; font-size: 0.65rem !important; }
+  .lang-switcher { padding: 2px !important; gap: 1px !important; }
+  .lang-btn { padding: 2px 5px !important; font-size: 0.6rem !important; min-width: 34px !important; height: 22px !important; }
+  .header-left button, .btn-hamburger { width: 28px !important; height: 28px !important; }
+  #header-countdown { font-size: 0.65rem; }
 }
 
 /* ============================================================
@@ -1140,10 +1157,23 @@ white-space: normal;
   border-bottom: 1px solid var(--surface-border); transition: background 0.15s;
   cursor: pointer;
 }
+.friend-entry-name  { flex: 1; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; gap: 4px; overflow: hidden; }
 .friend-entry:last-child { border-bottom: none; }
 .friend-entry:hover { background: var(--surface-light); }
 
-.friend-entry-name  { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.friend-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.friend-remove-btn:hover { color: #e85050; background: rgba(232,80,80,0.1); }
 .friend-entry-avg   { font-family: var(--font-mono); font-size: 0.9rem; color: var(--primary); font-weight: 700; min-width: 36px; text-align: right; }
 .friend-entry-today { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); min-width: 40px; text-align: right; }
 
@@ -1175,9 +1205,15 @@ white-space: normal;
 @media (max-width: 600px) {
   .friends-container { padding: 24px 12px; }
   .friend-entry { padding: 12px 14px; }
+  .leaderboard-list .lb-pinned { display: none; }
 }
-
+.friends-list-container { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; overflow: hidden; }
 .lb-name-click {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
   cursor: pointer;
   transition: text-decoration 0.15s;
 }
@@ -1227,6 +1263,8 @@ white-space: normal;
   cursor: pointer;
   transition: border-color 0.2s, transform 0.2s;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .pinned-badge-slot.filled {
   border-style: solid;
@@ -1240,6 +1278,7 @@ white-space: normal;
 .lb-pinned {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 .lb-pinned-badge {
   width: 22px; height: 22px;
@@ -1272,3 +1311,6 @@ white-space: normal;
   user-select: none;
   -webkit-user-select: none;
 }
+
+.pinned-badge-slot { position: relative; }
+.pinned-badge-slot.tooltip-open .badge-tooltip { opacity: 1; }

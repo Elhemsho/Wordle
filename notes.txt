@@ -1,10 +1,5 @@
 Fixes:
 - octordel/quordle feste tastatur???
-- badges in profil bei kleinen bildshcirmen besser designgn
-- badges in leaderboard / freundesliste besser designen nicht 2 reihen
-- bei kleinen bildschirmen you im leaderboard soll nicht n zeile drunter sein
-- wen man sprache switcht nicht auf freundesliste zurück gehen wenn man bei add fruende war
-- all time leaderboard text top 10 today deutsh übersetzugn
 
 Ideen:
 - registrieren - passwort zurücksetzen / email bestätigen

@@ -1708,7 +1708,7 @@ const BADGE_DEFS = [
   { id: 'first_friend', group: 'first_friend', tier: 'gold', emoji: '🤝', name: { de: 'Sozial', en: 'Social' }, desc: { de: 'Ersten Freund hinzugefügt', en: 'Added your first friend' } },
 
   // --- Einmalig: Alles an einem Tag ---
-  { id: 'allday',  group: 'allday',  tier: 'gold', emoji: '👑', name: { de: 'König des Tages', en: 'Day King' },      desc: { de: 'DE+EN Daily + Dordle + Quordle + Octordle an einem Tag', en: 'DE+EN Daily + Dordle + Quordle + Octordle in one day' } },
+  { id: 'allday',  group: 'allday',  tier: 'gold', emoji: '👑', name: { de: 'König des Tages', en: 'Day King' },      desc: { de: 'Daily + Dordle, Quordle & Octordle (je DE+EN) an einem Tag', en: 'Daily + Dordle, Quordle & Octordle (DE+EN each) in one day' } },
 ];
 
 // Alle Badge-IDs als Set für schnellen Lookup
@@ -1872,19 +1872,22 @@ async function checkAllDayBadge(userId, earned, tryAward) {
   const todayDE = getTodayKey('de');
   const todayEN = getTodayKey('en');
   try {
-    // Daily DE + EN heute gewonnen?
     const lbDE = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.de&day_key=eq.${todayDE}&attempts=lt.7`);
     const lbEN = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.en&day_key=eq.${todayEN}&attempts=lt.7`);
     if (!lbDE?.length || !lbEN?.length) return;
 
-    // Fun wins heute?
-    const fw = await sbFetch(`fun_wins?user_id=eq.${userId}&select=mode,won_at`);
-    const todayFun = { dordle: false, quordle: false, octordle: false };
+    const fw = await sbFetch(`fun_wins?user_id=eq.${userId}&select=mode,lang,won_at`);
+    const todayFun = {
+      dordle_de: false, dordle_en: false,
+      quordle_de: false, quordle_en: false,
+      octordle_de: false, octordle_en: false
+    };
     (fw || []).forEach(r => {
       const d = new Date(r.won_at).toDateString();
-      if (d === today && todayFun[r.mode] !== undefined) todayFun[r.mode] = true;
+      const key = `${r.mode}_${r.lang}`;
+      if (d === today && todayFun[key] !== undefined) todayFun[key] = true;
     });
-    if (todayFun.dordle && todayFun.quordle && todayFun.octordle) {
+    if (Object.values(todayFun).every(v => v)) {
       await tryAward('allday');
     }
   } catch {}
@@ -1973,7 +1976,7 @@ async function recordFunWin(mode) {
   try {
     await sbFetch('fun_wins', {
       method: 'POST',
-      body: JSON.stringify({ user_id: state.currentUser.id, mode }),
+      body: JSON.stringify({ user_id: state.currentUser.id, mode, lang: state.lang }),
       prefer: 'return=minimal'
     });
   } catch(e) { console.warn('fun_wins insert error:', e); }
@@ -2073,7 +2076,7 @@ function friendsSetTab(tab) {
 async function setupFriendsPage() {
   if (!state.currentUser) { navigate('home'); return; }
   updateFriendsLanguage();
-  friendsSetTab('list');
+  friendsSetTab(friendsTab);
   updateFriendRequestBadge();
 }
 
@@ -2143,12 +2146,12 @@ async function loadFriendsList() {
         if (!def) return '';
         return `<span class="lb-pinned-badge tier-${def.tier}" title="${def.name[state.lang]}">${def.emoji}</span>`;
       }).join('');
-      return `<div class="friend-entry lb-entry" onclick="openFriendProfile('${f.id}', '${f.username}')">
+      return `<div class="friend-entry" onclick="openFriendProfile('${f.id}', '${f.username}')">
         <div class="lb-avatar">${f.username[0].toUpperCase()}</div>
         <div class="friend-entry-name">${f.username}<span class="lb-pinned">${pinnedHtml}</span></div>
         <div class="friend-entry-avg">${f.avg}</div>
         <div class="friend-entry-today">${todayStr}</div>
-        <button class="btn btn-ghost" style="padding:5px 10px; font-size:0.75rem;" onclick="event.stopPropagation(); confirmRemoveFriend('${f.id}', '${f.username}')">${de ? 'Entfernen' : 'Remove'}</button>
+        <button class="friend-remove-btn" onclick="event.stopPropagation(); confirmRemoveFriend('${f.id}', '${f.username}')" title="${de ? 'Entfernen' : 'Remove'}">✕</button>
       </div>`;
     }).join('');
   } catch(e) {
@@ -2410,15 +2413,6 @@ const winrate    = played > 0 ? Math.round((won / played) * 100) + '%' : '0%';
 const _origFetchAndRenderList = fetchAndRenderList;
 fetchAndRenderList = async function() {
   await _origFetchAndRenderList();
-  if (!state.currentUser) return;
-  try {
-    const friendIds = await getFriendIds(state.currentUser.id);
-    document.querySelectorAll('.lb-name-click').forEach(span => {
-      if (friendIds.has(span.dataset.uid)) {
-        span.insertAdjacentHTML('afterend', '<span class="lb-friend-icon">👥</span>');
-      }
-    });
-  } catch(e) {}
 };
 
 document.addEventListener('click', async (e) => {
@@ -2504,8 +2498,12 @@ async function savePinnedBadges(userId, pinned) {
   } catch(e) { console.warn('pinned save error:', e); }
 }
 
+let _pinToggleLock = false;
 async function togglePinBadge(badgeId) {
   if (!state.currentUser) return;
+  if (_pinToggleLock) return;
+  _pinToggleLock = true;
+  setTimeout(() => { _pinToggleLock = false; }, 500);
   const userId = state.currentUser.id;
   const de = state.lang === 'de';
   let pinned = await loadPinnedBadges(userId);
@@ -2542,10 +2540,14 @@ function renderProfilePinned(pinned) {
     }
     const tierClass = `tier-${def.tier}`;
     const dotLabel = def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G';
-    return `<div class="pinned-badge-slot filled badge-icon-wrap ${tierClass}" title="${def.name[de ? 'de' : 'en']}" onclick="togglePinBadge('${def.id}')">
-      ${def.emoji}
-      <div class="badge-tier-dot">${dotLabel}</div>
-    </div>`;
+    return `<div class="pinned-badge-slot filled badge-icon-wrap ${tierClass}" 
+  title="${def.name[de ? 'de' : 'en']}"
+  onclick="handleBadgeClick(this,'${def.id}','${def.name[de ? 'de' : 'en']}','${def.desc[de ? 'de' : 'en']}')"
+  ondblclick="togglePinBadge('${def.id}')">
+  ${def.emoji}
+  <div class="badge-tier-dot">${dotLabel}</div>
+  <div class="badge-tooltip"></div>
+</div>`;
   }).join('');
 }
 
