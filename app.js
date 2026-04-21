@@ -1639,6 +1639,8 @@ function updateDrawerLanguage(lang) {
   setEl('drawer-label-fun', de ? 'Spielwiese' : 'Playground');
   setEl('drawer-name-daily', de ? 'Wördle' : 'Wordle');
   setEl('drawer-desc-daily', de ? 'Wort des Tages' : 'Word of the Day');
+  setEl('drawer-name-hardmode', 'Hard Mode');
+  setEl('drawer-desc-hardmode', de ? 'Nur gültige Guesses · Täglich' : 'Valid guesses only · Daily');
   setEl('drawer-name-solo', de ? 'Wördle' : 'Wordle');
   setEl('drawer-desc-solo', de ? '1 Wort · 6 Versuche · Ungewertet' : '1 Word · 6 Attempts · Unranked');
   setEl('drawer-desc-dordle', de ? '2 Wörter · 7 Versuche' : '2 Words · 7 Attempts');
@@ -1696,6 +1698,11 @@ const BADGE_DEFS = [
   { id: 'octordle_bronze', group: 'octordle', tier: 'bronze', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '5× Octordle gewonnen',  en: '5× Octordle wins' },  threshold: 5 },
   { id: 'octordle_silver', group: 'octordle', tier: 'silver', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '25× Octordle gewonnen', en: '25× Octordle wins' }, threshold: 25 },
   { id: 'octordle_gold',   group: 'octordle', tier: 'gold',   emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '50× Octordle gewonnen', en: '50× Octordle wins' }, threshold: 50 },
+
+  // --- Upgradeable: Hard Mode ---
+  { id: 'hardmode_bronze', group: 'hardmode', tier: 'bronze', emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '1× Hard Mode gewonnen',  en: '1× Hard Mode win' },  threshold: 1 },
+  { id: 'hardmode_silver', group: 'hardmode', tier: 'silver', emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '5× Hard Mode gewonnen',  en: '5× Hard Mode wins' }, threshold: 5 },
+  { id: 'hardmode_gold',   group: 'hardmode', tier: 'gold',   emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '15× Hard Mode gewonnen', en: '15× Hard Mode wins' }, threshold: 15 },
 
   // --- Einmalig: Glückspilz (1 Versuch) ---
   { id: 'lucky',   group: 'lucky',   tier: 'gold', emoji: '🍀', name: { de: 'Glückspilz',    en: 'Lucky Guess' },   desc: { de: 'Daily in 1 Versuch gelöst',           en: 'Solved daily in 1 attempt' } },
@@ -1842,6 +1849,22 @@ async function checkAndAwardBadges(context = {}) {
   if (funWins.octordle >= 5)  await tryAward('octordle_bronze');
   if (funWins.octordle >= 25) await tryAward('octordle_silver');
   if (funWins.octordle >= 50) await tryAward('octordle_gold');
+
+  // Octordle
+  if (funWins.octordle >= 5)  await tryAward('octordle_bronze');
+  if (funWins.octordle >= 25) await tryAward('octordle_silver');
+  if (funWins.octordle >= 50) await tryAward('octordle_gold');
+
+  // Hard Mode
+  if (context.mode === 'hardmode' && context.won) {
+    try {
+      const uRows = await sbFetch(`users?id=eq.${userId}&select=hardmode_wins`);
+      const hwins = uRows?.[0]?.hardmode_wins || 0;
+      if (hwins >= 1)  await tryAward('hardmode_bronze');
+      if (hwins >= 5)  await tryAward('hardmode_silver');
+      if (hwins >= 15) await tryAward('hardmode_gold');
+    } catch {}
+  }
 
   // Glückspilz
   if (context.guesses === 1 && context.mode === 'daily') await tryAward('lucky');
@@ -2044,6 +2067,14 @@ async function backfillBadges() {
     if (funWins.octordle >= 5)  await tryAward('octordle_bronze');
     if (funWins.octordle >= 25) await tryAward('octordle_silver');
     if (funWins.octordle >= 50) await tryAward('octordle_gold');
+
+try {
+  const uRowsHM = await sbFetch(`users?id=eq.${userId}&select=hardmode_wins`);
+  const hwins = uRowsHM?.[0]?.hardmode_wins || 0;
+  if (hwins >= 1)  await tryAward('hardmode_bronze');
+  if (hwins >= 5)  await tryAward('hardmode_silver');
+  if (hwins >= 15) await tryAward('hardmode_gold');
+} catch {}
 
 try {
   const uRows = await sbFetch(`users?id=eq.${userId}&select=speed_wins`);
@@ -2636,5 +2667,454 @@ function handleBadgeClick(el, badgeId, badgeName, badgeDesc) {
     }, 10);
   }
 }
+
+// ============================================================
+//  HARD MODE
+// ============================================================
+
+let hmState = {
+  currentGuess: '', cursorCol: 0, currentRow: 0,
+  gameOver: false, targetWord: '', todayKey: '',
+  startTime: null, keyColors: {}, guesses: [],
+  gameId: 0, isAnimating: false
+};
+
+function getHardModeWord(lang) {
+  const words = lang === 'de'
+    ? (DAILY_WORDS_DE.length > 0 ? DAILY_WORDS_DE : [])
+    : (DAILY_WORDS_EN.length > 0 ? DAILY_WORDS_EN : []);
+  if (!words.length) return null;
+  const today = new Date();
+  // seed + 7777 → immer anderes Wort als getDailyWord
+  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate() + 7777;
+  let hash = seed;
+  hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
+  hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
+  hash = (hash >> 16) ^ hash;
+  return words[Math.abs(hash) % words.length];
+}
+
+function getHardModeTodayKey(lang) {
+  const d = new Date();
+  return `hm_${lang}_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
+}
+
+function getHardGameState(username, todayKey) {
+  return JSON.parse(localStorage.getItem(`hmg_${username}_${todayKey}`) || 'null');
+}
+function saveHardGameState(username, todayKey, gs) {
+  localStorage.setItem(`hmg_${username}_${todayKey}`, JSON.stringify(gs));
+}
+
+function startHardMode() {
+  hmState.isAnimating = false;
+  state.isAnimating = false;
+  navigate('hardmode');
+}
+
+// navigate patchen für hardmode
+const _origNavigateHM = navigate;
+navigate = function(page) {
+  _origNavigateHM(page);
+  if (page === 'hardmode') setupHardModePage();
+};
+
+function setupHardModePage() {
+  hmState.gameId = (hmState.gameId || 0) + 1;
+  hmState.isAnimating = false;
+
+  hmState.todayKey = getHardModeTodayKey(state.lang);
+  hmState.targetWord = getHardModeWord(state.lang);
+
+  if (!hmState.targetWord) {
+    showToast(state.lang === 'de' ? 'Fehler beim Laden des Wortes.' : 'Error loading word.', 'error');
+    return;
+  }
+
+  // Zielwort zu validen Listen
+  if (typeof wordlistsReady !== 'undefined' && wordlistsReady) {
+    VALID_WORDS_DE.add(hmState.targetWord);
+    VALID_WORDS_EN.add(hmState.targetWord);
+  }
+
+  const de = state.lang === 'de';
+  setEl('hardmode-subtitle', 'HARD MODE 💀');
+  setEl('hardmode-played-title', de ? 'Heute bereits gespielt!' : 'Already played today!');
+
+  if (!state.currentUser) {
+    showToast(de ? 'Bitte anmelden!' : 'Please login!', 'error');
+    _origNavigateHM('home');
+    return;
+  }
+
+  const saved = getHardGameState(state.currentUser.username, hmState.todayKey);
+  hmState.gameOver = saved ? saved.gameOver : false;
+  hmState.guesses = saved ? saved.guesses : [];
+  hmState.currentRow = hmState.guesses.length;
+  hmState.keyColors = saved ? saved.keyColors : {};
+  hmState.currentGuess = '';
+  hmState.cursorCol = 0;
+  hmState.startTime = saved ? saved.startTime : Date.now();
+
+  if (hmState.gameOver) {
+    document.getElementById('hardmode-played-banner').style.display = 'block';
+    setEl('hardmode-played-sub', (de ? 'Heutiges Wort: ' : "Today's word: ") + hmState.targetWord);
+  } else {
+    document.getElementById('hardmode-played-banner').style.display = 'none';
+  }
+
+  buildHardGrid();
+  buildHardKeyboard();
+  restoreHardGuesses();
+  startHardCountdown();
+}
+
+function buildHardGrid() {
+  const grid = document.getElementById('hardmode-grid');
+  grid.innerHTML = '';
+  for (let r = 0; r < DATA.config.maxAttempts; r++) {
+    const row = document.createElement('div');
+    row.className = 'grid-row'; row.id = `hm-row-${r}`;
+    for (let c = 0; c < DATA.config.wordLength; c++) {
+      const tile = document.createElement('div');
+      tile.className = 'grid-tile'; tile.id = `hm-tile-${r}-${c}`;
+      tile.addEventListener('click', () => handleHardTileClick(r, c));
+      row.appendChild(tile);
+    }
+    grid.appendChild(row);
+  }
+}
+
+function handleHardTileClick(row, col) {
+  if (hmState.gameOver || hmState.isAnimating) return;
+  if (row !== hmState.currentRow) return;
+  hmState.cursorCol = col;
+  updateHardCurrentRow();
+}
+
+function buildHardKeyboard() {
+  const keyboard = document.getElementById('hardmode-keyboard');
+  keyboard.innerHTML = '';
+  const rows = state.lang === 'de'
+    ? [['Q','W','E','R','T','Z','U','I','O','P','Ü'],['A','S','D','F','G','H','J','K','L','Ö','Ä'],['ENTER','Y','X','C','V','B','N','M','⌫']]
+    : [['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['ENTER','Z','X','C','V','B','N','M','⌫']];
+  rows.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'keyboard-row';
+    row.forEach(key => {
+      const btn = document.createElement('button');
+      btn.className = 'key' + (key === 'ENTER' || key === '⌫' ? ' wide' : '');
+      btn.textContent = key === 'ENTER' ? (state.ui?.submit || 'ENTER') : key;
+      btn.dataset.key = key; btn.id = `hm-key-${key}`;
+      if (hmState.keyColors[key]) btn.className += ' ' + hmState.keyColors[key];
+      btn.addEventListener('click', () => handleHardKey(key));
+      rowEl.appendChild(btn);
+    });
+    keyboard.appendChild(rowEl);
+  });
+}
+
+function restoreHardGuesses() {
+  hmState.guesses.forEach((guess, rowIdx) => {
+    const result = evaluateGuess(guess, hmState.targetWord);
+    for (let c = 0; c < DATA.config.wordLength; c++) {
+      const tile = document.getElementById(`hm-tile-${rowIdx}-${c}`);
+      if (tile) { tile.textContent = guess[c]; tile.className = 'grid-tile ' + result[c]; }
+    }
+  });
+}
+
+function updateHardCurrentRow() {
+  for (let c = 0; c < DATA.config.wordLength; c++) {
+    const tile = document.getElementById(`hm-tile-${hmState.currentRow}-${c}`);
+    if (tile) {
+      const char = hmState.currentGuess[c] || '';
+      tile.textContent = char;
+      let cls = 'grid-tile';
+      if (char) cls += ' filled';
+      if (c === hmState.cursorCol && !hmState.gameOver && !hmState.isAnimating) cls += ' cursor';
+      tile.className = cls;
+    }
+  }
+}
+
+function handleHardKey(key) {
+  if (hmState.gameOver) return;
+  if (hmState.isAnimating) return;
+  if (!state.currentUser) { showToast(state.lang === 'de' ? 'Bitte anmelden!' : 'Please login!', 'error'); return; }
+
+  if (key === 'ArrowLeft') { hmState.cursorCol = Math.max(0, hmState.cursorCol - 1); updateHardCurrentRow(); return; }
+  if (key === 'ArrowRight') { hmState.cursorCol = Math.min(DATA.config.wordLength - 1, hmState.cursorCol + 1); updateHardCurrentRow(); return; }
+  if (key === '⌫' || key === 'Backspace') {
+    if (hmState.currentGuess.length > 0) { hmState.currentGuess = hmState.currentGuess.slice(0, -1); hmState.cursorCol = hmState.currentGuess.length; }
+    updateHardCurrentRow(); return;
+  }
+  if (key === 'ENTER' || key === 'Enter') { submitHardGuess(); return; }
+  if (/^[A-ZÄÖÜa-zäöü]$/.test(key)) {
+    const arr = hmState.currentGuess.padEnd(DATA.config.wordLength, ' ').split('');
+    arr[hmState.cursorCol] = key.toUpperCase();
+    hmState.currentGuess = arr.join('').trimEnd();
+    if (hmState.cursorCol < DATA.config.wordLength - 1) hmState.cursorCol++;
+    updateHardCurrentRow();
+  }
+}
+
+// Hard Mode constraint check: returns error string or null
+function checkHardModeConstraints(guess) {
+  const de = state.lang === 'de';
+  const correct = Array(DATA.config.wordLength).fill(null);
+  const mustContain = {};
+  const absent = new Set();
+
+  for (const prev of hmState.guesses) {
+    const result = evaluateGuess(prev, hmState.targetWord);
+    const letterCount = {};
+    for (let i = 0; i < DATA.config.wordLength; i++) {
+      const ch = prev[i];
+      if (result[i] === 'correct') {
+        correct[i] = ch;
+        letterCount[ch] = (letterCount[ch] || 0) + 1;
+      } else if (result[i] === 'present') {
+        letterCount[ch] = (letterCount[ch] || 0) + 1;
+      } else {
+        if (!letterCount[ch]) absent.add(ch);
+      }
+    }
+    for (const [ch, cnt] of Object.entries(letterCount)) {
+      mustContain[ch] = Math.max(mustContain[ch] || 0, cnt);
+    }
+  }
+
+  const guessArr = guess.split('');
+
+  for (let i = 0; i < DATA.config.wordLength; i++) {
+    if (correct[i] && guessArr[i] !== correct[i]) {
+      return de ? `Position ${i+1} muss ${correct[i]} sein!` : `Position ${i+1} must be ${correct[i]}!`;
+    }
+  }
+  for (const [ch, cnt] of Object.entries(mustContain)) {
+    const found = guessArr.filter(c => c === ch).length;
+    if (found < cnt) {
+      return de ? `${ch} muss vorkommen!` : `${ch} must be used!`;
+    }
+  }
+  for (const ch of absent) {
+    if (guessArr.includes(ch)) {
+      return de ? `${ch} ist nicht im Wort!` : `${ch} is not in the word!`;
+    }
+  }
+  return null;
+}
+
+async function submitHardGuess() {
+  if (!(await isOnline())) {
+    showToast(state.lang === 'de' ? 'Keine Internetverbindung!' : 'No internet connection!', 'error');
+    return;
+  }
+
+  const guessRaw = hmState.currentGuess || '';
+  const filledCount = guessRaw.replace(/ /g, '').length;
+
+  if (filledCount < DATA.config.wordLength) {
+    shakeHardRow(hmState.currentRow);
+    showToast(state.ui.wordTooShort, 'error');
+    return;
+  }
+
+  if (typeof wordlistsReady !== 'undefined' && wordlistsReady) {
+    const validSet = state.lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
+    if (!validSet.has(guessRaw)) {
+      shakeHardRow(hmState.currentRow);
+      showToast(state.ui.invalidWord, 'error');
+      return;
+    }
+  }
+
+  const constraintErr = checkHardModeConstraints(guessRaw);
+  if (constraintErr) {
+    shakeHardRow(hmState.currentRow);
+    showToast(constraintErr, 'error');
+    return;
+  }
+
+  const guess = guessRaw.padEnd(DATA.config.wordLength, ' ').substring(0, DATA.config.wordLength).toUpperCase();
+  const result = evaluateGuess(guess, hmState.targetWord);
+  const rowIdx = hmState.currentRow;
+
+  hmState.currentGuess = '';
+  hmState.cursorCol = 0;
+  hmState.currentRow++;
+  hmState.guesses.push(guess);
+  updateHardCurrentRow();
+
+  const won = result.every(r => r === 'correct');
+
+  revealHardRow(rowIdx, guess, result, async () => {
+    if (won || hmState.currentRow >= DATA.config.maxAttempts) {
+      hmState.gameOver = true;
+      saveHardGame();
+      if (state.currentUser && won) {
+        try {
+          await updateHardModeWins();
+          await checkAndAwardBadges({ mode: 'hardmode', won: true });
+        } catch(e) { console.error('Hard mode stats error:', e); }
+      }
+      showHardResult(won);
+    } else {
+      saveHardGame();
+      hmState.cursorCol = 0;
+      updateHardCurrentRow();
+    }
+  });
+}
+
+function revealHardRow(rowIdx, guess, result, callback) {
+  const stagger = 300, flipMs = 600, flipHalf = flipMs / 2;
+  const totalDuration = (DATA.config.wordLength - 1) * stagger + flipMs;
+  hmState.isAnimating = true;
+  for (let c = 0; c < DATA.config.wordLength; c++) {
+    const tile = document.getElementById(`hm-tile-${rowIdx}-${c}`);
+    setTimeout(() => {
+      tile.style.transition = `transform ${flipHalf}ms ease-in`;
+      tile.style.transform = 'scaleY(0)';
+      setTimeout(() => {
+        tile.textContent = guess[c];
+        tile.className = 'grid-tile ' + result[c];
+        tile.style.transition = `transform ${flipHalf}ms ease-out`;
+        tile.style.transform = 'scaleY(1)';
+        updateHardKeyColor(guess[c], result[c]);
+      }, flipHalf);
+    }, c * stagger);
+  }
+  setTimeout(() => { callback(); hmState.isAnimating = false; }, totalDuration);
+}
+
+function updateHardKeyColor(letter, status) {
+  const priority = { correct: 3, present: 2, absent: 1 };
+  const current = hmState.keyColors[letter];
+  if (!current || priority[status] > priority[current]) {
+    hmState.keyColors[letter] = status;
+    const keyEl = document.getElementById(`hm-key-${letter}`);
+    if (keyEl) keyEl.className = 'key ' + status + (keyEl.classList.contains('wide') ? ' wide' : '');
+  }
+}
+
+function shakeHardRow(rowIdx) {
+  document.getElementById(`hm-row-${rowIdx}`)?.querySelectorAll('.grid-tile').forEach(t => {
+    t.classList.add('shake');
+    t.addEventListener('animationend', () => t.classList.remove('shake'), { once: true });
+  });
+}
+
+function saveHardGame() {
+  if (!state.currentUser) return;
+  saveHardGameState(state.currentUser.username, hmState.todayKey, {
+    gameOver: hmState.gameOver, guesses: hmState.guesses,
+    keyColors: hmState.keyColors, startTime: hmState.startTime
+  });
+}
+
+async function updateHardModeWins() {
+  const userId = state.currentUser.id;
+  const flagKey = `hm_win_recorded_${userId}_${hmState.todayKey}`;
+  if (localStorage.getItem(flagKey)) return;
+  const uRows = await sbFetch(`users?id=eq.${userId}&select=hardmode_wins`);
+  const current = uRows?.[0]?.hardmode_wins || 0;
+  await sbFetch(`users?id=eq.${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ hardmode_wins: current + 1 }),
+    prefer: 'return=minimal'
+  });
+  localStorage.setItem(flagKey, '1');
+}
+
+async function showHardResult(won) {
+  const de = state.lang === 'de';
+  document.getElementById('hm-result-emoji').textContent = won ? '🎉' : '😔';
+  document.getElementById('hm-result-title').textContent = won
+    ? (state.ui?.congratulations || (de ? 'Glückwunsch!' : 'Congratulations!'))
+    : (state.ui?.gameOver || (de ? 'Schade!' : 'Game Over!'));
+  document.getElementById('hm-result-word').textContent = hmState.targetWord;
+  document.getElementById('hm-res-attempts').textContent = won ? hmState.guesses.length : '✕';
+  document.getElementById('hm-res-attempts-label').textContent = de ? 'Versuche' : 'Attempts';
+  document.getElementById('hm-res-time-label').textContent = de ? 'Zeit' : 'Time';
+  document.getElementById('hm-res-time').textContent = formatTime(Math.floor((Date.now() - hmState.startTime) / 1000));
+  document.getElementById('hm-res-wins-label').textContent = de ? 'Hard Wins 💀' : 'Hard Wins 💀';
+  document.getElementById('hm-result-countdown-text').innerHTML =
+    (de ? 'Nächstes Wort in ' : 'Next word in ') + '<span id="hm-result-timer">00:00:00</span>';
+  document.getElementById('hm-btn-close').textContent = de ? '✕ Schließen' : '✕ Close';
+
+  if (state.currentUser) {
+    try {
+      const uRows = await sbFetch(`users?id=eq.${state.currentUser.id}&select=hardmode_wins`);
+      document.getElementById('hm-res-wins').textContent = uRows?.[0]?.hardmode_wins || 0;
+    } catch { document.getElementById('hm-res-wins').textContent = '—'; }
+  }
+
+  const banner = document.getElementById('hardmode-played-banner');
+  if (banner) {
+    setEl('hardmode-played-sub', (de ? 'Heutiges Wort: ' : "Today's word: ") + hmState.targetWord);
+    banner.style.display = 'block';
+  }
+
+  document.getElementById('hardmode-result-overlay').classList.add('open');
+  startHardResultCountdown();
+}
+
+function closeHardResult() {
+  document.getElementById('hardmode-result-overlay').classList.remove('open');
+  if (hmState.gameOver && hmState.targetWord) {
+    const de = state.lang === 'de';
+    setEl('hardmode-played-sub', (de ? 'Heutiges Wort: ' : "Today's word: ") + hmState.targetWord);
+    const banner = document.getElementById('hardmode-played-banner');
+    if (banner) banner.style.display = 'block';
+  }
+}
+
+let hmResultCountdownInterval = null;
+function startHardResultCountdown() {
+  if (hmResultCountdownInterval) clearInterval(hmResultCountdownInterval);
+  function update() {
+    const el = document.getElementById('hm-result-timer');
+    if (!el) return;
+    const diff = new Date().setHours(24,0,0,0) - Date.now();
+    const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
+    el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  update(); hmResultCountdownInterval = setInterval(update, 1000);
+}
+
+function startHardCountdown() {
+  function update() {
+    const el = document.getElementById('hardmode-countdown');
+    if (!el) return;
+    const diff = new Date().setHours(24,0,0,0) - Date.now();
+    const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
+    el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  update(); setInterval(update, 1000);
+}
+
+document.addEventListener('keydown', e => {
+  if (document.getElementById('modal-overlay').classList.contains('open')) return;
+  if (!document.getElementById('page-hardmode')?.classList.contains('active')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Backspace') { handleHardKey('Backspace'); return; }
+  if (e.key === 'Enter') { handleHardKey('Enter'); return; }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); handleHardKey('ArrowLeft'); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); handleHardKey('ArrowRight'); return; }
+  if (/^[a-zA-ZäöüÄÖÜ]$/.test(e.key)) handleHardKey(e.key.toUpperCase());
+});
+
+// switchLanguage Hard Mode support
+const _origSwitchLangHM = switchLanguage;
+switchLanguage = async function(lang) {
+  await _origSwitchLangHM(lang);
+  const activePage = document.querySelector('.page.active');
+  if (activePage?.id === 'page-hardmode') {
+    if (hmState.isAnimating) return;
+    setupHardModePage();
+  }
+};
 
 loadData();

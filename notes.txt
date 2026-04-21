@@ -1,8 +1,10 @@
 Fixes:
 - octordel/quordle feste tastatur???
+- word ist to short bei hard mode
+- hard mode design
+- daily mode sprach switch nicht erst in normales menu
 
 Ideen:
 - white mode
 - Level mit Fortschrittsbalken im Profil
 - freund herausfordern Wordle Duell — gleiche Runde, wer schneller löst gewinnt (nutzt dein Freundessystem)
-- hard mode (nur perfekte guesses)

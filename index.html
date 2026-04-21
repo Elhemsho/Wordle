@@ -80,6 +80,20 @@
     <div class="keyboard" id="game-keyboard"></div>
   </div>
 
+  <!-- HARD MODE -->
+  <div id="page-hardmode" class="page">
+    <div class="game-header">
+      <h2 id="hardmode-subtitle">HARD MODE</h2>
+      <div class="countdown" id="hardmode-countdown"></div>
+    </div>
+    <div id="hardmode-played-banner" class="played-banner" style="display:none;">
+      <h3 id="hardmode-played-title">Heute bereits gespielt!</h3>
+      <p id="hardmode-played-sub"></p>
+    </div>
+    <div class="grid-container" id="hardmode-grid"></div>
+    <div class="keyboard" id="hardmode-keyboard"></div>
+  </div>
+ 
   <!-- PROFILE -->
   <div id="page-profile" class="page">
     <div id="profile-logged-out" class="centered-message" style="display:none;">
@@ -343,6 +357,13 @@
       <span class="drawer-item-desc" id="drawer-desc-daily">Wort des Tages</span>
     </div>
   </button>
+  <button class="drawer-item" id="drawer-item-hardmode" onclick="closeDrawer(); startHardMode();">
+    <span class="drawer-item-icon">💀</span>
+    <div class="drawer-item-text">
+      <span class="drawer-item-name" id="drawer-name-hardmode">Hard Mode</span>
+      <span class="drawer-item-desc" id="drawer-desc-hardmode">Nur gültige Guesses · Täglich</span>
+    </div>
+  </button>
   <div class="drawer-section-label" id="drawer-label-fun">Spielwiese</div>
   <button class="drawer-item" onclick="closeDrawer(); setupFunMode('solo');">
     <span class="drawer-item-icon">🎮</span>
@@ -465,6 +486,36 @@
   <div id="offline-warning-banner" style="display:none; background: rgba(232,88,10,0.12); border: 1px solid var(--primary); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: var(--primary); margin-bottom: 16px; text-align: center;"></div>
 </div>
 
+<!-- ===== HARD MODE RESULT OVERLAY ===== -->
+<div class="result-overlay" id="hardmode-result-overlay">
+  <div class="result-card">
+    <button class="result-close-btn" onclick="closeHardResult()" title="Schließen">✕</button>
+    <span class="result-emoji" id="hm-result-emoji">🎉</span>
+    <div class="result-title" id="hm-result-title">Glückwunsch!</div>
+    <div class="result-word" id="hm-result-word">WORT</div>
+    <div class="result-stats">
+      <div class="result-stat">
+        <span class="result-stat-num" id="hm-res-attempts">3</span>
+        <span class="result-stat-label" id="hm-res-attempts-label">Versuche</span>
+      </div>
+      <div class="result-stat">
+        <span class="result-stat-num" id="hm-res-wins">0</span>
+        <span class="result-stat-label" id="hm-res-wins-label">Hard Wins 💀</span>
+      </div>
+      <div class="result-stat">
+        <span class="result-stat-num" id="hm-res-time">1:24</span>
+        <span class="result-stat-label" id="hm-res-time-label">Zeit</span>
+      </div>
+    </div>
+    <div class="result-countdown" id="hm-result-countdown-text">
+      Nächstes Wort in <span id="hm-result-timer">00:00:00</span>
+    </div>
+    <div class="result-actions">
+      <button class="btn btn-ghost" onclick="closeHardResult()" id="hm-btn-close">✕ Schließen</button>
+    </div>
+  </div>
+</div>
+ 
 <!-- FRIEND REQUEST POPUP -->
 <div class="badge-popup-overlay" id="friend-req-overlay" onclick="closeFriendReqPopup()">
   <div class="badge-popup" onclick="event.stopPropagation()">
