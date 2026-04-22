@@ -256,6 +256,8 @@ header {
    DAILY GAME PAGE
    ============================================================ */
 #page-game { align-items: center; padding: 32px 16px; gap: 24px; }
+/* nach: #page-game { align-items: center; padding: 32px 16px; gap: 24px; } */
+#page-hardmode { align-items: center; padding: 32px 16px; gap: 24px; }
 
 .game-header { text-align: center; animation: fadeUp 0.4s ease; }
 .game-header h2 { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.2em; color: var(--text-muted); text-transform: uppercase; }
@@ -737,6 +739,56 @@ header {
 .fun-key.correct { background: var(--correct); border-color: var(--correct); color: #fff; box-shadow: 0 2px 10px var(--correct-glow); }
 .fun-key.present { background: var(--present); border-color: var(--present); color: #fff; }
 .fun-key.absent  { background: #1a1715; border-color: #2a2420; color: #665c54; opacity: 0.55; cursor: default; }
+
+/* NEU: */
+.hm-game-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hm-info-btn {
+  position: absolute;
+  left: 190px;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, color 0.2s;
+  line-height: 1;
+}
+.hm-info-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.hm-info-popup {
+  position: absolute;
+  top: 0;
+  right: 0px;
+  z-index: 200;
+  background: var(--surface-light);
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  width: 240px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: fadeUp 0.15s ease;
+}
+.hm-info-popup .hm-rule { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+.hm-info-popup .hm-rule:last-child { margin-bottom: 0; }
+.hm-info-popup .hm-rule-icon { flex-shrink: 0; }
+.hm-info-popup .hm-rule-text { color: var(--text-muted); }
 
 /* ============================================================
    RESPONSIVE — max-width: 1200px

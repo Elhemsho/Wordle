@@ -82,9 +82,11 @@
 
   <!-- HARD MODE -->
   <div id="page-hardmode" class="page">
-    <div class="game-header">
-      <h2 id="hardmode-subtitle">HARD MODE</h2>
+    <div class="game-header hm-game-header">
+      <h2 id="hardmode-subtitle">HARD MODE 💀</h2>
       <div class="countdown" id="hardmode-countdown"></div>
+      <button type="button" class="hm-info-btn" onclick="toggleHardModeInfo()" aria-label="Spielregeln">?</button>
+      <div class="hm-info-popup" id="hm-info-popup" style="display:none;"></div>
     </div>
     <div id="hardmode-played-banner" class="played-banner" style="display:none;">
       <h3 id="hardmode-played-title">Heute bereits gespielt!</h3>

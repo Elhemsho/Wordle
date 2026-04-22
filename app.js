@@ -2841,8 +2841,12 @@ function updateHardCurrentRow() {
 function handleHardKey(key) {
   if (hmState.gameOver) return;
   if (hmState.isAnimating) return;
-  if (!state.currentUser) { showToast(state.lang === 'de' ? 'Bitte anmelden!' : 'Please login!', 'error'); return; }
-
+  if (!state.currentUser) {
+    if (/^[A-ZÄÖÜa-zäöü]$/.test(key) || key === 'ENTER' || key === 'Enter') {
+      showToast(state.lang === 'de' ? 'Bitte anmelden!' : 'Please login!', 'error');
+    }
+    return;
+  }
   if (key === 'ArrowLeft') { hmState.cursorCol = Math.max(0, hmState.cursorCol - 1); updateHardCurrentRow(); return; }
   if (key === 'ArrowRight') { hmState.cursorCol = Math.min(DATA.config.wordLength - 1, hmState.cursorCol + 1); updateHardCurrentRow(); return; }
   if (key === '⌫' || key === 'Backspace') {
@@ -2906,14 +2910,17 @@ function checkHardModeConstraints(guess) {
   return null;
 }
 
+// NEU:
 async function submitHardGuess() {
   if (!(await isOnline())) {
     showToast(state.lang === 'de' ? 'Keine Internetverbindung!' : 'No internet connection!', 'error');
     return;
   }
 
-  const guessRaw = hmState.currentGuess || '';
-  const filledCount = guessRaw.replace(/ /g, '').length;
+  // Normalisieren: trimEnd dann uppercase, so wie submitGuess es macht
+  const raw = hmState.currentGuess || '';
+  const guessArr = raw.padEnd(DATA.config.wordLength, '').split('');
+  const filledCount = guessArr.filter(c => c.trim()).length;
 
   if (filledCount < DATA.config.wordLength) {
     shakeHardRow(hmState.currentRow);
@@ -2921,23 +2928,27 @@ async function submitHardGuess() {
     return;
   }
 
+  // guess exakt wie submitGuess: padEnd auf 5, uppercase
+  const guess = raw.padEnd(DATA.config.wordLength, ' ').substring(0, DATA.config.wordLength).toUpperCase();
+
   if (typeof wordlistsReady !== 'undefined' && wordlistsReady) {
     const validSet = state.lang === 'de' ? VALID_WORDS_DE : VALID_WORDS_EN;
-    if (!validSet.has(guessRaw)) {
+    // Wortlisten können lowercase oder uppercase sein — beide prüfen
+    if (!validSet.has(guess) && !validSet.has(raw) && !validSet.has(raw.toUpperCase())) {
       shakeHardRow(hmState.currentRow);
       showToast(state.ui.invalidWord, 'error');
       return;
     }
   }
 
-  const constraintErr = checkHardModeConstraints(guessRaw);
+  const constraintErr = checkHardModeConstraints(guess);
   if (constraintErr) {
     shakeHardRow(hmState.currentRow);
     showToast(constraintErr, 'error');
     return;
   }
 
-  const guess = guessRaw.padEnd(DATA.config.wordLength, ' ').substring(0, DATA.config.wordLength).toUpperCase();
+  // Ab hier: alles valid — State committen
   const result = evaluateGuess(guess, hmState.targetWord);
   const rowIdx = hmState.currentRow;
 
@@ -3093,6 +3104,38 @@ function startHardCountdown() {
     el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
   update(); setInterval(update, 1000);
+}
+
+function toggleHardModeInfo() {
+  const popup = document.getElementById('hm-info-popup');
+  if (!popup) return;
+  const de = state.lang === 'de';
+  const rules = de ? [
+    { icon: '🟩', text: 'Grüne Buchstaben müssen in der selben Position bleiben.' },
+    { icon: '🟨', text: 'Gelbe Buchstaben müssen im nächsten Guess vorkommen.' },
+    { icon: '⬛', text: 'Graue Buchstaben dürfen nicht nochmal verwendet werden.' }
+  ] : [
+    { icon: '🟩', text: 'Green letters must stay in the same position.' },
+    { icon: '🟨', text: 'Yellow letters must appear in the next guess.' },
+    { icon: '⬛', text: 'Grey letters cannot be used again.' }
+  ];
+  if (popup.style.display !== 'none') {
+    popup.style.display = 'none';
+    return;
+  }
+  popup.innerHTML = rules.map(r =>
+    `<div class="hm-rule"><span class="hm-rule-icon">${r.icon}</span><span class="hm-rule-text">${r.text}</span></div>`
+  ).join('');
+  popup.style.display = 'block';
+  // Klick außerhalb schließt
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!popup.contains(e.target) && !e.target.closest('.hm-info-btn')) {
+        popup.style.display = 'none';
+        document.removeEventListener('click', close);
+      }
+    });
+  }, 10);
 }
 
 document.addEventListener('keydown', e => {
