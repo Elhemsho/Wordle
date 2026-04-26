@@ -1,9 +1,12 @@
 Fixes:
 - octordel/quordle feste tastatur???
-- word ist to short bei hard mode
+
 - daily mode sprach switch nicht erst in normales menu
 - entfernene von custom stelle 
-- esrt enn man wort eingibt im hard mode den toast mit anmelden
+
+- hard mode regel pop up responssive und verschieben
+
+- grace ist ein wort aber nicht in valic wortliset
 
 Ideen:
 - white mode

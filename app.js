@@ -2742,11 +2742,19 @@ function setupHardModePage() {
   setEl('hardmode-played-title', de ? 'Heute bereits gespielt!' : 'Already played today!');
 
   if (!state.currentUser) {
-    showToast(de ? 'Bitte anmelden!' : 'Please login!', 'error');
-    _origNavigateHM('home');
+    hmState.gameOver = false;
+    hmState.guesses = [];
+    hmState.currentRow = 0;
+    hmState.keyColors = {};
+    hmState.currentGuess = '';
+    hmState.cursorCol = 0;
+    hmState.startTime = Date.now();
+    document.getElementById('hardmode-played-banner').style.display = 'none';
+    buildHardGrid();
+    buildHardKeyboard();
+    startHardCountdown();
     return;
   }
-
   const saved = getHardGameState(state.currentUser.username, hmState.todayKey);
   hmState.gameOver = saved ? saved.gameOver : false;
   hmState.guesses = saved ? saved.guesses : [];
@@ -3060,6 +3068,9 @@ async function showHardResult(won) {
       const uRows = await sbFetch(`users?id=eq.${state.currentUser.id}&select=hardmode_wins`);
       document.getElementById('hm-res-wins').textContent = uRows?.[0]?.hardmode_wins || 0;
     } catch { document.getElementById('hm-res-wins').textContent = '—'; }
+  } else {
+    document.getElementById('hm-res-wins').textContent = '—';
+    if (won) showToast(de ? 'Anmelden um Siege zu speichern!' : 'Login to save wins!', 'info', 4000);
   }
 
   const banner = document.getElementById('hardmode-played-banner');
@@ -3159,5 +3170,9 @@ switchLanguage = async function(lang) {
     setupHardModePage();
   }
 };
+
+document.addEventListener('click', e => {
+  if (e.target.closest('button')) e.target.closest('button').blur();
+});
 
 loadData();
