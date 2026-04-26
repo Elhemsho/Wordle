@@ -750,7 +750,7 @@ header {
 
 .hm-info-btn {
   position: absolute;
-  left: 190px;
+  left: 195px;
   top: 0;
   width: 22px;
   height: 22px;
@@ -773,7 +773,8 @@ header {
 .hm-info-popup {
   position: absolute;
   top: 0;
-  right: 0px;
+  left: 190px;
+  margin-left: -248px;
   z-index: 200;
   background: var(--surface-light);
   border: 1px solid var(--surface-border);
@@ -867,6 +868,11 @@ header {
   .funmode-title {
     font-size: 0.7rem;
     letter-spacing: 0.15em;
+  }
+
+  /*Hard Mode*/
+  .hm-info-btn {
+    left: 175px;
   }
   /* Daily game */
   #page-game    { padding: 16px 8px; gap: 16px; }

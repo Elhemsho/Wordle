@@ -52,8 +52,9 @@ let state = {
   gameOver: false, targetWord: '', todayKey: '', startTime: null,
   keyColors: {}, guesses: [], ui: {},
   gameId: 0,
-  isAnimating: false,  // blocks input + language switch during reveal animation
-  cursorCol: 0
+  isAnimating: false,
+  cursorCol: 0,
+  resultPending: false
 };
 
 async function loadData() {
@@ -299,7 +300,7 @@ function applyLanguage(lang) {
 async function switchLanguage(lang) {
   // 1. Verhindern, dass während Animationen gewechselt wird
   if (state.isAnimating || funState.isAnimating) return;
-
+if (state.resultPending) return;
   // 2. Internet-Check: Sprachwechsel braucht Internet, um neue Wörter zu laden
   if (!(await isOnline())) {
     showToast(state.lang === 'de' ? 'Sprachwechsel nur mit Internet möglich!' : 'Language switch requires internet!');
@@ -315,8 +316,7 @@ async function switchLanguage(lang) {
 
   const pageId = activePage.id;
   if (pageId === 'page-game') {
-    // Falls wir im Spiel sind, müssen wir die neuen Wortlisten laden
-    await loadData(); 
+    applyLanguage(lang);
     setupGamePage();
   } 
   else if (pageId === 'page-funmode') {
@@ -571,9 +571,16 @@ function handleKey(key) {
   }
 
   if (key === '⌫' || key === 'Backspace') {
-    if (state.currentGuess.length > 0) {
-      state.currentGuess = state.currentGuess.slice(0, -1);
-      state.cursorCol = state.currentGuess.length; // Cursor folgt dem Ende
+    const arr = state.currentGuess.padEnd(DATA.config.wordLength, ' ').split('');
+    if (arr[state.cursorCol] && arr[state.cursorCol].trim()) {
+      // Buchstabe an Cursorposition löschen, Cursor bleibt
+      arr[state.cursorCol] = ' ';
+      state.currentGuess = arr.join('').trimEnd();
+    } else if (state.cursorCol > 0) {
+      // Leere Stelle: Cursor einen zurück und dort löschen
+      state.cursorCol--;
+      arr[state.cursorCol] = ' ';
+      state.currentGuess = arr.join('').trimEnd();
     }
     updateCurrentRow(); return;
   }
@@ -655,7 +662,7 @@ async function submitGuess() {
      if (won || state.currentRow >= DATA.config.maxAttempts) {
       state.gameOver = true;
       // Banner NICHT hier zeigen — erst nach Animation in showResult
-      
+      state.resultPending = true;
       saveCurrentGame();
       
       if (state.currentUser) {
@@ -817,6 +824,7 @@ async function showResult(won) {
 }
 
 function closeResult() {
+  state.resultPending = false;
   document.getElementById('result-overlay').classList.remove('open');
   document.getElementById('offline-warning-banner').style.display = 'none';
   // played-sub sofort korrekt befüllen
@@ -1368,7 +1376,15 @@ function handleFunKey(key) {
   if (key === 'ArrowLeft') { funState.cursorCol = Math.max(0, funState.cursorCol - 1); updateFunCurrentRow(); return; }
   if (key === 'ArrowRight') { funState.cursorCol = Math.min(funState.wordLength - 1, funState.cursorCol + 1); updateFunCurrentRow(); return; }
   if (key === '⌫' || key === 'Backspace') {
-    if (funState.currentGuess.length > 0) { funState.currentGuess = funState.currentGuess.slice(0, -1); funState.cursorCol = funState.currentGuess.length; }
+    const arr = funState.currentGuess.padEnd(funState.wordLength, ' ').split('');
+    if (arr[funState.cursorCol] && arr[funState.cursorCol].trim()) {
+      arr[funState.cursorCol] = ' ';
+      funState.currentGuess = arr.join('').trimEnd();
+    } else if (funState.cursorCol > 0) {
+      funState.cursorCol--;
+      arr[funState.cursorCol] = ' ';
+      funState.currentGuess = arr.join('').trimEnd();
+    }
     updateFunCurrentRow(); return;
   }
   if (key === 'ENTER' || key === 'Enter') { submitFunGuess(); return; }
@@ -2858,7 +2874,15 @@ function handleHardKey(key) {
   if (key === 'ArrowLeft') { hmState.cursorCol = Math.max(0, hmState.cursorCol - 1); updateHardCurrentRow(); return; }
   if (key === 'ArrowRight') { hmState.cursorCol = Math.min(DATA.config.wordLength - 1, hmState.cursorCol + 1); updateHardCurrentRow(); return; }
   if (key === '⌫' || key === 'Backspace') {
-    if (hmState.currentGuess.length > 0) { hmState.currentGuess = hmState.currentGuess.slice(0, -1); hmState.cursorCol = hmState.currentGuess.length; }
+    const arr = hmState.currentGuess.padEnd(DATA.config.wordLength, ' ').split('');
+    if (arr[hmState.cursorCol] && arr[hmState.cursorCol].trim()) {
+      arr[hmState.cursorCol] = ' ';
+      hmState.currentGuess = arr.join('').trimEnd();
+    } else if (hmState.cursorCol > 0) {
+      hmState.cursorCol--;
+      arr[hmState.cursorCol] = ' ';
+      hmState.currentGuess = arr.join('').trimEnd();
+    }
     updateHardCurrentRow(); return;
   }
   if (key === 'ENTER' || key === 'Enter') { submitHardGuess(); return; }
@@ -2971,6 +2995,7 @@ async function submitHardGuess() {
   revealHardRow(rowIdx, guess, result, async () => {
     if (won || hmState.currentRow >= DATA.config.maxAttempts) {
       hmState.gameOver = true;
+      state.resultPending = true;
       saveHardGame();
       if (state.currentUser && won) {
         try {
@@ -2978,6 +3003,7 @@ async function submitHardGuess() {
           await checkAndAwardBadges({ mode: 'hardmode', won: true });
         } catch(e) { console.error('Hard mode stats error:', e); }
       }
+      
       showHardResult(won);
     } else {
       saveHardGame();
@@ -3084,6 +3110,7 @@ async function showHardResult(won) {
 }
 
 function closeHardResult() {
+  state.resultPending = false;
   document.getElementById('hardmode-result-overlay').classList.remove('open');
   if (hmState.gameOver && hmState.targetWord) {
     const de = state.lang === 'de';

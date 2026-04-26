@@ -1,13 +1,6 @@
 Fixes:
 - octordel/quordle feste tastatur???
 
-- daily mode sprach switch nicht erst in normales menu
-- entfernene von custom stelle 
-
-- hard mode regel pop up responssive und verschieben
-
-- grace ist ein wort aber nicht in valic wortliset
-
 Ideen:
 - white mode
 - Level mit Fortschrittsbalken im Profil
