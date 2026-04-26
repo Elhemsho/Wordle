@@ -1372,3 +1372,29 @@ white-space: normal;
 
 .pinned-badge-slot { position: relative; }
 .pinned-badge-slot.tooltip-open .badge-tooltip { opacity: 1; }
+
+/* Challenge Banner im Spiel */
+.challenge-game-banner {
+  background: linear-gradient(135deg, var(--primary), #c0392b);
+  color: white;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+/* Herausfordern Button in Freundesliste */
+.friend-challenge-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  margin-right: 2px;
+}
+.friend-challenge-btn:hover {
+  background: var(--tile-absent);
+}

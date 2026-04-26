@@ -2224,12 +2224,13 @@ async function loadFriendsList() {
         return `<span class="lb-pinned-badge tier-${def.tier}" title="${def.name[state.lang]}">${def.emoji}</span>`;
       }).join('');
       return `<div class="friend-entry" onclick="openFriendProfile('${f.id}', '${f.username}')">
-        <div class="lb-avatar">${f.username[0].toUpperCase()}</div>
-        <div class="friend-entry-name">${f.username}<span class="lb-pinned">${pinnedHtml}</span></div>
-        <div class="friend-entry-avg">${f.avg}</div>
-        <div class="friend-entry-today">${todayStr}</div>
-        <button class="friend-remove-btn" onclick="event.stopPropagation(); confirmRemoveFriend('${f.id}', '${f.username}')" title="${de ? 'Entfernen' : 'Remove'}">✕</button>
-      </div>`;
+  <div class="lb-avatar">${f.username[0].toUpperCase()}</div>
+  <div class="friend-entry-name">${f.username}<span class="lb-pinned">${pinnedHtml}</span></div>
+  <div class="friend-entry-avg">${f.avg}</div>
+  <div class="friend-entry-today">${todayStr}</div>
+  <button class="friend-challenge-btn" onclick="event.stopPropagation(); sendChallenge('${f.id}', '${f.username}')" title="${de ? 'Herausfordern' : 'Challenge'}">⚔️</button>
+  <button class="friend-remove-btn" onclick="event.stopPropagation(); confirmRemoveFriend('${f.id}', '${f.username}')" title="${de ? 'Entfernen' : 'Remove'}">✕</button>
+</div>`;
     }).join('');
   } catch(e) {
     console.error('loadFriendsList error:', e);
@@ -3196,6 +3197,499 @@ switchLanguage = async function(lang) {
     if (hmState.isAnimating) return;
     setupHardModePage();
   }
+};
+
+// ============================================================
+//  1v1 CHALLENGE SYSTEM
+// ============================================================
+
+let challengeRealtimeSub = null;
+let activeChallengeId = null;
+let activeChallengeOpponent = null; // { id, username }
+let challengeStartTime = null;
+
+// ---- Realtime Listener starten (nach Login) ----
+function startChallengeListener() {
+  if (!state.currentUser) return;
+  if (challengeRealtimeSub) challengeRealtimeSub.unsubscribe?.();
+
+  // Supabase Realtime via WebSocket
+  const wsUrl = SUPABASE_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
+  const ws = new WebSocket(wsUrl);
+  let heartbeat = null;
+
+  ws.onopen = () => {
+    // Channel joinen
+    ws.send(JSON.stringify({
+      topic: 'realtime:public:challenges',
+      event: 'phx_join',
+      payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: 'INSERT', schema: 'public', table: 'challenges', filter: `to_user=eq.${state.currentUser.id}` }, { event: 'UPDATE', schema: 'public', table: 'challenges' }] } },
+      ref: '1'
+    }));
+    heartbeat = setInterval(() => {
+      ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: '0' }));
+    }, 20000);
+  };
+
+  ws.onmessage = (msg) => {
+    try {
+      const data = JSON.parse(msg.data);
+      if (data.event !== 'postgres_changes') return;
+      const record = data.payload?.data?.record;
+      if (!record) return;
+
+      // Neue Challenge die an mich gesendet wurde
+      if (data.payload?.data?.type === 'INSERT' && record.to_user === state.currentUser.id && record.status === 'pending') {
+        onChallengeReceived(record);
+      }
+
+      // Update: Challenge wurde accepted → beide starten
+      if (data.payload?.data?.type === 'UPDATE' && record.status === 'active') {
+        if (record.id === activeChallengeId) {
+          startChallengeGame(record);
+        }
+      }
+
+      // Update: Gegner fertig
+      if (data.payload?.data?.type === 'UPDATE' && record.id === activeChallengeId) {
+        onChallengeUpdate(record);
+      }
+    } catch(e) {}
+  };
+
+  ws.onclose = () => {
+    if (heartbeat) clearInterval(heartbeat);
+    // Reconnect nach 3s falls noch eingeloggt
+    setTimeout(() => { if (state.currentUser) startChallengeListener(); }, 3000);
+  };
+
+  challengeRealtimeSub = { unsubscribe: () => { ws.close(); if (heartbeat) clearInterval(heartbeat); } };
+}
+
+// ---- Polling-Fallback (zuverlässiger als WS für dieses Setup) ----
+let challengePollInterval = null;
+
+function startChallengePoll() {
+  if (challengePollInterval) clearInterval(challengePollInterval);
+  if (!state.currentUser) return;
+  challengePollInterval = setInterval(pollChallenges, 4000);
+}
+
+function stopChallengePoll() {
+  if (challengePollInterval) clearInterval(challengePollInterval);
+  challengePollInterval = null;
+}
+
+let _lastSeenChallengeIds = new Set();
+
+async function pollChallenges() {
+  if (!state.currentUser) return;
+  try {
+    // Eingehende ausstehende Challenges
+    const incoming = await sbFetch(`challenges?to_user=eq.${state.currentUser.id}&status=eq.pending&select=*`);
+    for (const c of (incoming || [])) {
+      if (!_lastSeenChallengeIds.has(c.id)) {
+        _lastSeenChallengeIds.add(c.id);
+        onChallengeReceived(c);
+      }
+    }
+
+    // Aktive Challenge pollen (Gegner-Status)
+    if (activeChallengeId) {
+      const rows = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+      if (rows?.[0]) onChallengeUpdate(rows[0]);
+    }
+  } catch(e) {}
+}
+
+// ---- Challenge senden ----
+async function sendChallenge(friendId, friendUsername) {
+  if (!state.currentUser) return;
+  const de = state.lang === 'de';
+
+  // Prüfen ob schon eine offene Challenge existiert
+  try {
+    const existing = await sbFetch(`challenges?from_user=eq.${state.currentUser.id}&to_user=eq.${friendId}&status=in.(pending,active)&select=id`);
+    if (existing?.length > 0) {
+      showToast(de ? 'Du hast bereits eine offene Challenge mit diesem Spieler.' : 'You already have an open challenge with this player.', 'error');
+      return;
+    }
+  } catch(e) {}
+
+  // Zufälliges Wort wählen
+  const words = state.lang === 'de'
+    ? (typeof WORDS_DE !== 'undefined' ? WORDS_DE : (DAILY_WORDS_DE.length > 0 ? DAILY_WORDS_DE : []))
+    : (typeof WORDS_EN !== 'undefined' ? WORDS_EN : (DAILY_WORDS_EN.length > 0 ? DAILY_WORDS_EN : []));
+
+  // Fallback: aus DATA laden
+  const wordPool = words.length > 0 ? words : (DATA?.languages?.[state.lang]?.words || []);
+  if (wordPool.length === 0) {
+    showToast(de ? 'Wortliste nicht geladen.' : 'Word list not loaded.', 'error');
+    return;
+  }
+  const randomWord = wordPool[Math.floor(Math.random() * wordPool.length)];
+
+  try {
+    const result = await sbFetch('challenges', {
+      method: 'POST',
+      body: JSON.stringify({
+        from_user: state.currentUser.id,
+        to_user: friendId,
+        word: randomWord,
+        lang: state.lang
+      }),
+      prefer: 'return=representation'
+    });
+    activeChallengeId = result?.[0]?.id;
+    activeChallengeOpponent = { id: friendId, username: friendUsername };
+    showToast(de ? `Herausforderung an ${friendUsername} gesendet! ⚔️` : `Challenge sent to ${friendUsername}! ⚔️`, 'success', 4000);
+    showChallengeWaitingOverlay(friendUsername);
+  } catch(e) {
+    showToast(de ? 'Fehler beim Senden.' : 'Error sending challenge.', 'error');
+  }
+}
+
+// ---- Challenge empfangen → Popup zeigen ----
+async function onChallengeReceived(challenge) {
+  const de = state.lang === 'de';
+  // Sendername laden
+  let fromName = '?';
+  try {
+    const uRows = await sbFetch(`users?id=eq.${challenge.from_user}&select=username`);
+    fromName = uRows?.[0]?.username || '?';
+  } catch(e) {}
+
+  // Popup zeigen
+  const overlay = document.getElementById('challenge-incoming-overlay');
+  if (!overlay) return;
+  setEl('challenge-from-name', fromName);
+  setEl('challenge-incoming-title', de ? '⚔️ Herausforderung!' : '⚔️ Challenge!');
+  setEl('challenge-incoming-desc', de ? `${fromName} fordert dich heraus!` : `${fromName} is challenging you!`);
+  setEl('challenge-accept-btn', de ? 'Annehmen ✓' : 'Accept ✓');
+  setEl('challenge-decline-btn', de ? 'Ablehnen ✗' : 'Decline ✗');
+  overlay.dataset.challengeId = challenge.id;
+  overlay.dataset.fromUser = challenge.from_user;
+  overlay.dataset.fromName = fromName;
+  overlay.classList.add('open');
+}
+
+// ---- Challenge annehmen ----
+async function acceptChallenge() {
+  const overlay = document.getElementById('challenge-incoming-overlay');
+  const challengeId = overlay.dataset.challengeId;
+  const fromName = overlay.dataset.fromName;
+  const fromUser = overlay.dataset.fromUser;
+  overlay.classList.remove('open');
+  const de = state.lang === 'de';
+
+  try {
+    await sbFetch(`challenges?id=eq.${challengeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'active' }),
+      prefer: 'return=minimal'
+    });
+    activeChallengeId = challengeId;
+    activeChallengeOpponent = { id: fromUser, username: fromName };
+
+    // Challenge-Daten laden und Spiel starten
+    const rows = await sbFetch(`challenges?id=eq.${challengeId}&select=*`);
+    if (rows?.[0]) startChallengeGame(rows[0]);
+  } catch(e) {
+    showToast(de ? 'Fehler beim Annehmen.' : 'Error accepting.', 'error');
+  }
+}
+
+// ---- Challenge ablehnen ----
+async function declineChallenge() {
+  const overlay = document.getElementById('challenge-incoming-overlay');
+  const challengeId = overlay.dataset.challengeId;
+  overlay.classList.remove('open');
+  const de = state.lang === 'de';
+  try {
+    await sbFetch(`challenges?id=eq.${challengeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'declined' }),
+      prefer: 'return=minimal'
+    });
+    showToast(de ? 'Herausforderung abgelehnt.' : 'Challenge declined.', 'info');
+  } catch(e) {}
+}
+
+// ---- Warte-Overlay (Sender wartet auf Annehmen) ----
+function showChallengeWaitingOverlay(opponentName) {
+  const overlay = document.getElementById('challenge-waiting-overlay');
+  if (!overlay) return;
+  const de = state.lang === 'de';
+  setEl('challenge-waiting-name', opponentName);
+  setEl('challenge-waiting-title', de ? '⏳ Warte auf Antwort…' : '⏳ Waiting for response…');
+  setEl('challenge-waiting-desc', de ? `Warte auf ${opponentName}…` : `Waiting for ${opponentName}…`);
+  setEl('challenge-waiting-cancel', de ? 'Abbrechen' : 'Cancel');
+  overlay.classList.add('open');
+
+  // Polling starten um zu erkennen wenn Gegner annimmt
+  const waitPoll = setInterval(async () => {
+    if (!activeChallengeId) { clearInterval(waitPoll); return; }
+    try {
+      const rows = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+      const c = rows?.[0];
+      if (!c) return;
+      if (c.status === 'active') {
+        clearInterval(waitPoll);
+        overlay.classList.remove('open');
+        startChallengeGame(c);
+      } else if (c.status === 'declined') {
+        clearInterval(waitPoll);
+        overlay.classList.remove('open');
+        activeChallengeId = null;
+        showToast(de ? `${opponentName} hat abgelehnt.` : `${opponentName} declined.`, 'error', 4000);
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+function cancelChallengeWaiting() {
+  const overlay = document.getElementById('challenge-waiting-overlay');
+  overlay?.classList.remove('open');
+  if (activeChallengeId) {
+    sbFetch(`challenges?id=eq.${activeChallengeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'declined' }),
+      prefer: 'return=minimal'
+    }).catch(() => {});
+    activeChallengeId = null;
+  }
+}
+
+// ---- Challenge-Spiel starten ----
+function startChallengeGame(challenge) {
+  const de = state.lang === 'de';
+  // Warte-Overlay schließen falls noch offen
+  document.getElementById('challenge-waiting-overlay')?.classList.remove('open');
+
+  // State für Challenge-Modus setzen
+  activeChallengeId = challenge.id;
+  challengeStartTime = Date.now();
+
+  // Sprache setzen falls nötig
+  if (challenge.lang !== state.lang) applyLanguage(challenge.lang);
+
+  // Normales Spielfeld aufrufen aber mit Challenge-Wort überschreiben
+  navigate('game');
+
+  // Nach kurzer Verzögerung (setupGamePage läuft) das Wort überschreiben
+  setTimeout(() => {
+    state.targetWord = challenge.word.toUpperCase();
+    // Sicherstellen dass das Wort in der Valid-Liste ist
+    if (typeof VALID_WORDS_DE !== 'undefined') VALID_WORDS_DE.add(state.targetWord);
+    if (typeof VALID_WORDS_EN !== 'undefined') VALID_WORDS_EN.add(state.targetWord);
+    // Grid neu bauen mit dem richtigen Wort
+    state.gameOver = false;
+    state.guesses = [];
+    state.currentRow = 0;
+    state.keyColors = {};
+    state.currentGuess = '';
+    state.cursorCol = 0;
+    state.startTime = Date.now();
+    buildGrid();
+    buildKeyboard();
+
+    // Challenge-Banner zeigen
+    showChallengeBanner(activeChallengeOpponent?.username || '?');
+  }, 100);
+}
+
+// ---- Challenge-Banner oben im Spiel ----
+function showChallengeBanner(opponentName) {
+  let banner = document.getElementById('challenge-game-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'challenge-game-banner';
+    banner.className = 'challenge-game-banner';
+    const gamePage = document.getElementById('page-game');
+    gamePage?.prepend(banner);
+  }
+  const de = state.lang === 'de';
+  banner.innerHTML = `⚔️ <strong>${de ? 'Challenge vs' : 'Challenge vs'} ${opponentName}</strong> — ${de ? 'Gleiches Wort!' : 'Same word!'}`;
+  banner.style.display = 'block';
+}
+
+function hideChallengeGameBanner() {
+  const banner = document.getElementById('challenge-game-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+// ---- Patch: Wenn Spiel endet, Challenge-Ergebnis speichern ----
+// Wird nach showResult() aufgerufen — wir patchen submitGuess
+const _origSubmitGuess = typeof submitGuess !== 'undefined' ? submitGuess : null;
+
+// Stattdessen: nach gameOver erkennen wir es über einen Poll
+let _challengeResultSaved = false;
+
+async function saveChallengeResult(won, attempts) {
+  if (!activeChallengeId || _challengeResultSaved) return;
+  _challengeResultSaved = true;
+  const de = state.lang === 'de';
+  const timeSec = Math.floor((Date.now() - challengeStartTime) / 1000);
+
+  try {
+    // Herausfinden ob ich p1 oder p2 bin
+    const rows = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+    const c = rows?.[0];
+    if (!c) return;
+
+    const isP1 = c.from_user === state.currentUser.id;
+    const patch = isP1
+      ? { p1_attempts: won ? attempts : 7, p1_time: timeSec, p1_done: true }
+      : { p2_attempts: won ? attempts : 7, p2_time: timeSec, p2_done: true };
+
+    // Wenn beide done → status finished
+    const otherDone = isP1 ? c.p2_done : c.p1_done;
+    if (otherDone) patch.status = 'finished';
+
+    await sbFetch(`challenges?id=eq.${activeChallengeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+      prefer: 'return=minimal'
+    });
+
+    hideChallengeGameBanner();
+
+    if (otherDone) {
+      // Beide fertig → Siegerehrung sofort
+      const updated = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+      showChallengeResult(updated[0]);
+    } else {
+      showToast(de ? `Du bist fertig! Warte auf ${activeChallengeOpponent?.username}…` : `You're done! Waiting for ${activeChallengeOpponent?.username}…`, 'info', 5000);
+      // Weiter pollen bis Gegner fertig
+      pollUntilBothDone();
+    }
+  } catch(e) { console.error('saveChallengeResult error:', e); }
+}
+
+async function pollUntilBothDone() {
+  const poll = setInterval(async () => {
+    if (!activeChallengeId) { clearInterval(poll); return; }
+    try {
+      const rows = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+      const c = rows?.[0];
+      if (!c) { clearInterval(poll); return; }
+      if (c.status === 'finished' || (c.p1_done && c.p2_done)) {
+        clearInterval(poll);
+        showChallengeResult(c);
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+// ---- Wenn Gegner fertig wird (während ich noch spiele) ----
+function onChallengeUpdate(record) {
+  if (!activeChallengeId || record.id !== activeChallengeId) return;
+  const de = state.lang === 'de';
+  const isP1 = record.from_user === state.currentUser?.id;
+  const opponentDone = isP1 ? record.p2_done : record.p1_done;
+  const myDone = isP1 ? record.p1_done : record.p2_done;
+
+  if (opponentDone && !myDone) {
+    showToast(de ? `${activeChallengeOpponent?.username} ist fertig! Beeil dich! 🏃` : `${activeChallengeOpponent?.username} is done! Hurry up! 🏃`, 'info', 4000);
+  }
+
+  if (record.status === 'finished' || (record.p1_done && record.p2_done)) {
+    showChallengeResult(record);
+  }
+}
+
+// ---- Siegerehrung ----
+function showChallengeResult(challenge) {
+  if (!state.currentUser) return;
+  const de = state.lang === 'de';
+  const isP1 = challenge.from_user === state.currentUser.id;
+  const myAttempts = isP1 ? challenge.p1_attempts : challenge.p2_attempts;
+  const myTime = isP1 ? challenge.p1_time : challenge.p2_time;
+  const oppAttempts = isP1 ? challenge.p2_attempts : challenge.p1_attempts;
+  const oppTime = isP1 ? challenge.p2_time : challenge.p1_time;
+  const oppName = activeChallengeOpponent?.username || '?';
+
+  const myFailed = myAttempts === 7 || myAttempts == null;
+  const oppFailed = oppAttempts === 7 || oppAttempts == null;
+
+  let winner = '';
+  let emoji = '';
+  if (myFailed && oppFailed) { winner = de ? 'Unentschieden!' : 'Draw!'; emoji = '🤝'; }
+  else if (myFailed) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; }
+  else if (oppFailed) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; }
+  else if (myAttempts < oppAttempts) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; }
+  else if (oppAttempts < myAttempts) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; }
+  else if (myTime < oppTime) { winner = de ? 'Du gewinnst! (schneller)' : 'You win! (faster)'; emoji = '🎉'; }
+  else if (oppTime < myTime) { winner = de ? `${oppName} gewinnt! (schneller)` : `${oppName} wins! (faster)`; emoji = '😔'; }
+  else { winner = de ? 'Unentschieden!' : 'Draw!'; emoji = '🤝'; }
+
+  const overlay = document.getElementById('challenge-result-overlay');
+  if (!overlay) return;
+
+  setEl('cr-emoji', emoji);
+  setEl('cr-winner', winner);
+  setEl('cr-word', de ? `Wort: ${challenge.word.toUpperCase()}` : `Word: ${challenge.word.toUpperCase()}`);
+
+  setEl('cr-my-label', de ? 'Du' : 'You');
+  setEl('cr-my-attempts', myFailed ? '✕' : `${myAttempts}/6`);
+  setEl('cr-my-time', myTime != null ? formatTime(myTime) : '—');
+
+  setEl('cr-opp-label', oppName);
+  setEl('cr-opp-attempts', oppFailed ? '✕' : (oppAttempts != null ? `${oppAttempts}/6` : '⏳'));
+  setEl('cr-opp-time', oppTime != null ? formatTime(oppTime) : '—');
+
+  setEl('cr-close-btn', de ? '✕ Schließen' : '✕ Close');
+  setEl('cr-rematch-btn', de ? '🔄 Revanche' : '🔄 Rematch');
+
+  overlay.classList.add('open');
+
+  // Challenge-State zurücksetzen
+  activeChallengeId = null;
+  _challengeResultSaved = false;
+}
+
+function closeChallengeResult() {
+  document.getElementById('challenge-result-overlay')?.classList.remove('open');
+  hideChallengeGameBanner();
+  activeChallengeOpponent = null;
+}
+
+function challengeRematch() {
+  const opp = activeChallengeOpponent;
+  closeChallengeResult();
+  if (opp) sendChallenge(opp.id, opp.username);
+}
+
+// ---- Patch: game-over Hook ----
+// Wir patchen showResult um nach dem normalen Ergebnis auch Challenge-Result zu triggern
+const _origShowResult = showResult;
+showResult = async function(won) {
+  await _origShowResult(won);
+  if (activeChallengeId && !_challengeResultSaved) {
+    const attempts = state.guesses.length;
+    await saveChallengeResult(won, attempts);
+  }
+};
+
+// ---- Login-Hook: Polling starten ----
+const _origDoLogin = doLogin;
+doLogin = async function() {
+  await _origDoLogin();
+  if (state.currentUser) {
+    startChallengePoll();
+  }
+};
+
+// Falls User bereits eingeloggt ist beim Laden
+document.addEventListener('DOMContentLoaded', () => {
+  if (state.currentUser) startChallengePoll();
+});
+
+// Fallback: nach init() starten
+const _origInit = init;
+init = function() {
+  _origInit();
+  if (state.currentUser) startChallengePoll();
 };
 
 document.addEventListener('click', e => {

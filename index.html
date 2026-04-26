@@ -555,6 +555,54 @@
   </div>
 </div>
 
+<!-- CHALLENGE: Eingehende Herausforderung -->
+<div id="challenge-incoming-overlay" class="modal-overlay">
+  <div class="modal-box" style="max-width:340px; text-align:center;">
+    <div style="font-size:2.5rem; margin-bottom:8px;">⚔️</div>
+    <h2 id="challenge-incoming-title" style="margin:0 0 8px">Herausforderung!</h2>
+    <p id="challenge-incoming-desc" style="color:var(--text-muted); margin-bottom:24px;"></p>
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button id="challenge-accept-btn" class="btn btn-primary" onclick="acceptChallenge()">Annehmen ✓</button>
+      <button id="challenge-decline-btn" class="btn btn-ghost" onclick="declineChallenge()">Ablehnen ✗</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHALLENGE: Warten auf Gegner -->
+<div id="challenge-waiting-overlay" class="modal-overlay">
+  <div class="modal-box" style="max-width:340px; text-align:center;">
+    <div style="font-size:2.5rem; margin-bottom:8px;">⏳</div>
+    <h2 id="challenge-waiting-title" style="margin:0 0 8px">Warte auf Antwort…</h2>
+    <p id="challenge-waiting-desc" style="color:var(--text-muted); margin-bottom:24px;"></p>
+    <button id="challenge-waiting-cancel" class="btn btn-ghost" onclick="cancelChallengeWaiting()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- CHALLENGE: Siegerehrung -->
+<div id="challenge-result-overlay" class="modal-overlay">
+  <div class="modal-box" style="max-width:380px; text-align:center;">
+    <div id="cr-emoji" style="font-size:3rem; margin-bottom:8px;">🎉</div>
+    <h2 id="cr-winner" style="margin:0 0 4px"></h2>
+    <p id="cr-word" style="color:var(--primary); font-weight:700; margin-bottom:20px;"></p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
+      <div class="stat-card">
+        <span class="value" id="cr-my-attempts">—</span>
+        <span class="label" id="cr-my-label">Du</span>
+        <span style="font-size:0.78rem; color:var(--text-muted)" id="cr-my-time"></span>
+      </div>
+      <div class="stat-card">
+        <span class="value" id="cr-opp-attempts">—</span>
+        <span class="label" id="cr-opp-label">Gegner</span>
+        <span style="font-size:0.78rem; color:var(--text-muted)" id="cr-opp-time"></span>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button id="cr-close-btn" class="btn btn-ghost" onclick="closeChallengeResult()">✕ Schließen</button>
+      <button id="cr-rematch-btn" class="btn btn-primary" onclick="challengeRematch()">🔄 Revanche</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== TOAST ===== -->
 <div class="toast-container" id="toast-container"></div>
 
