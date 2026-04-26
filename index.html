@@ -95,6 +95,17 @@
     <div class="grid-container" id="hardmode-grid"></div>
     <div class="keyboard" id="hardmode-keyboard"></div>
   </div>
+
+  
+<!-- CHALLENGE GAME PAGE -->
+<div id="page-challenge" class="page">
+  <div id="challenge-game-banner" class="challenge-game-banner" style="display:none;"></div>
+  <div class="game-header">
+    <div id="challenge-game-subtitle" style="font-size:0.7rem; letter-spacing:0.1em; color:var(--text-muted);">1v1 CHALLENGE</div>
+  </div>
+  <div id="challenge-grid" class="grid-container"></div>
+  <div id="challenge-keyboard" class="keyboard"></div>
+</div>
  
   <!-- PROFILE -->
   <div id="page-profile" class="page">
@@ -368,21 +379,21 @@
   </button>
   <div class="drawer-section-label" id="drawer-label-fun">Spielwiese</div>
   <button class="drawer-item" onclick="closeDrawer(); setupFunMode('solo');">
-    <span class="drawer-item-icon">🎮</span>
+    <span class="drawer-item-icon">🎯</span>
     <div class="drawer-item-text">
       <span class="drawer-item-name" id="drawer-name-solo">Wördle</span>
       <span class="drawer-item-desc" id="drawer-desc-solo">1 Wort · 6 Versuche</span>
     </div>
   </button>
   <button class="drawer-item" onclick="closeDrawer(); setupFunMode('dordle');">
-    <span class="drawer-item-icon">⚔️</span>
+    <span class="drawer-item-icon">🎮</span>
     <div class="drawer-item-text">
       <span class="drawer-item-name">Dordle</span>
       <span class="drawer-item-desc" id="drawer-desc-dordle">2 Wörter · 7 Versuche</span>
     </div>
   </button>
   <button class="drawer-item" onclick="closeDrawer(); setupFunMode('quordle');">
-    <span class="drawer-item-icon">🔲</span>
+    <span class="drawer-item-icon">🪟</span>
     <div class="drawer-item-text">
       <span class="drawer-item-name">Quordle</span>
       <span class="drawer-item-desc" id="drawer-desc-quordle">4 Wörter · 9 Versuche</span>
@@ -552,6 +563,16 @@
     <div class="badge-popup-name" id="badge-popup-name">—</div>
     <div class="badge-popup-desc" id="badge-popup-desc">—</div>
     <button class="btn btn-primary" onclick="closeBadgePopup()" style="margin-top:16px; width:100%">Cool! 🎉</button>
+  </div>
+</div>
+
+<!-- FREUND AKTIONEN POPUP -->
+<div id="friend-action-overlay" class="modal-overlay" onclick="closeFriendActionPopup()">
+  <div class="friend-action-menu" id="friend-action-menu" onclick="event.stopPropagation()">
+    <button onclick="friendActionProfile()">👤 <span id="fa-profile-label">Profil ansehen</span></button>
+    <button onclick="friendActionChallenge()">⚔️ <span id="fa-challenge-label">Herausfordern</span></button>
+    <div class="menu-divider"></div>
+    <button class="menu-danger" onclick="friendActionRemove()">✕ <span id="fa-remove-label">Freund entfernen</span></button>
   </div>
 </div>
 

@@ -1,15 +1,7 @@
 Fixes:
 - octordel/quordle feste tastatur???
 - aufgeben button fahne obe nlinks
-
-herausfordern
-- freundesliste anklicken -> profil ansehen / herausfordern / freund entferenen pop up
-- wenn einer noch nciht daily gemacht hat soll das nicht als sein daily in das leaderboard reingehen
-- überprüfen soll auch nciht in statistik rein gehen
-- umgebung soll nciht die vom daiyl sein (heutiges wort war:)
-- bei pop up link zu leaderboard weg machen
-- badges dafür hinzufügen
-- leaderboard winrate / wins für 
+- herausfordern (nicht sprache switchen während)
 
 Ideen:
 - white mode
