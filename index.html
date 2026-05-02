@@ -26,7 +26,7 @@
   <header>
     <div class="header-left">
       <button type="button" class="btn-hamburger" id="btn-hamburger" onclick="toggleDrawer()" title="Modi">☰</button>
-      <div class="logo" onclick="navigate('home')" id="logo-text">WÖRDLE</div>
+      <div class="logo" onclick="handleLogoClick()" id="logo-text">WÖRDLE</div>
     </div>
     <div class="header-right">
       <div class="lang-switcher">
@@ -66,7 +66,7 @@
     </div>
   </div>
 
-  <!-- GAME -->
+<!-- GAME -->
   <div id="page-game" class="page">
     <div class="game-header">
       <h2 id="game-subtitle">WORT DES TAGES</h2>
@@ -83,11 +83,18 @@
   <!-- HARD MODE -->
   <div id="page-hardmode" class="page">
     <div class="game-header hm-game-header">
-      <h2 id="hardmode-subtitle">HARD MODE 💀</h2>
-      <div class="countdown" id="hardmode-countdown"></div>
-      <button type="button" class="hm-info-btn" onclick="toggleHardModeInfo()" aria-label="Spielregeln">?</button>
-      <div class="hm-info-popup" id="hm-info-popup" style="display:none;"></div>
-    </div>
+  <button type="button" class="hm-giveup-btn" id="hm-giveup-btn" onclick="openGiveUpPopup()" title="Aufgeben">
+    <svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round" stroke-linejoin="round" width="28" height="22">
+      <line x1="5" y1="2" x2="5" y2="22"/>
+      <path d="M5 5 Q18 2 13 11 Q18 20 5 17"/>
+    </svg>
+  </button>
+  <h2 id="hardmode-subtitle">HARD MODE 💀</h2>
+  <div class="countdown" id="hardmode-countdown"></div>
+  <button type="button" class="hm-info-btn" onclick="toggleHardModeInfo()" aria-label="Spielregeln">?</button>
+  <div class="hm-info-popup" id="hm-info-popup" style="display:none;"></div>
+</div>
     <div id="hardmode-played-banner" class="played-banner" style="display:none;">
       <h3 id="hardmode-played-title">Heute bereits gespielt!</h3>
       <p id="hardmode-played-sub"></p>
@@ -99,14 +106,23 @@
   
 <!-- CHALLENGE GAME PAGE -->
 <div id="page-challenge" class="page">
-  <div id="challenge-game-banner" class="challenge-game-banner" style="display:none;"></div>
-  <div class="game-header">
-    <div id="challenge-game-subtitle" style="font-size:0.7rem; letter-spacing:0.1em; color:var(--text-muted);">1v1 CHALLENGE</div>
+  <div class="challenge-header">
+    <button type="button" class="cs-giveup-btn" id="cs-giveup-btn" onclick="openChallengeGiveUpPopup()" title="Aufgeben">
+      <svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round" width="28" height="22">
+        <line x1="5" y1="2" x2="5" y2="22"/>
+        <path d="M5 5 Q18 2 13 11 Q18 20 5 17"/>
+      </svg>
+    </button>
+    <div class="funmode-title" id="challenge-title">1v1 DUELL</div>
+    <button type="button" class="cs-info-btn" id="cs-info-btn" onclick="toggleChallengeInfo()" title="Info">?</button>
+    <div class="hm-info-popup" id="cs-info-popup" style="display:none;"></div>
   </div>
+  <div id="challenge-game-banner" class="challenge-game-banner" style="display:none;"></div>
   <div id="challenge-grid" class="grid-container"></div>
   <div id="challenge-keyboard" class="keyboard"></div>
 </div>
- 
+
   <!-- PROFILE -->
   <div id="page-profile" class="page">
     <div id="profile-logged-out" class="centered-message" style="display:none;">
@@ -345,7 +361,7 @@
   <!-- FUN MODE PAGE -->
 <div id="page-funmode" class="page">
   <div class="funmode-header">
-    <button type="button" class="btn btn-ghost funmode-back " onclick="navigate('home')">← <span class="funmode-back-label">Zurück</span></button>
+    <button type="button" class="btn btn-ghost funmode-back " onclick="navigate('home')"><span class="funmode-back-label" id="funmode-back-label">Zurück</span></button>
     <div class="funmode-title" id="funmode-title">WORDLE UNRANKED</div>
     <button type="button" class="btn btn-ghost  restart" onclick="restartFunMode()" id="btn-funmode-restart">↺ <span id="funmode-restart-label">Neu</span></button>
   </div>
@@ -555,6 +571,19 @@
   </div>
 </div>
 
+<!-- AUFGEBEN POPUP (Hard Mode) -->
+<div class="badge-popup-overlay" id="giveup-overlay" onclick="closeGiveUpPopup()">
+  <div class="badge-popup" onclick="event.stopPropagation()">
+    <div class="badge-popup-emoji">🏳️</div>
+    <div class="badge-popup-name" id="giveup-title">Aufgeben?</div>
+    <div class="badge-popup-desc" id="giveup-desc">Du verlierst diese Runde und erfährst das Wort.</div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeGiveUpPopup()" style="flex:1" id="giveup-cancel">Abbrechen</button>
+      <button class="btn btn-primary" onclick="executeGiveUp()" style="flex:1" id="giveup-confirm">Aufgeben</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== BADGE POPUP ===== -->
 <div class="badge-popup-overlay" id="badge-popup-overlay" onclick="closeBadgePopup()">
   <div class="badge-popup" id="badge-popup" onclick="event.stopPropagation()">
@@ -567,7 +596,7 @@
 </div>
 
 <!-- FREUND AKTIONEN POPUP -->
-<div id="friend-action-overlay" class="modal-overlay" onclick="closeFriendActionPopup()">
+<div id="friend-action-overlay" class="badge-popup-overlay" onclick="closeFriendActionPopup()">
   <div class="friend-action-menu" id="friend-action-menu" onclick="event.stopPropagation()">
     <button onclick="friendActionProfile()">👤 <span id="fa-profile-label">Profil ansehen</span></button>
     <button onclick="friendActionChallenge()">⚔️ <span id="fa-challenge-label">Herausfordern</span></button>
@@ -577,47 +606,60 @@
 </div>
 
 <!-- CHALLENGE: Eingehende Herausforderung -->
-<div id="challenge-incoming-overlay" class="modal-overlay">
-  <div class="modal-box" style="max-width:340px; text-align:center;">
-    <div style="font-size:2.5rem; margin-bottom:8px;">⚔️</div>
-    <h2 id="challenge-incoming-title" style="margin:0 0 8px">Herausforderung!</h2>
-    <p id="challenge-incoming-desc" style="color:var(--text-muted); margin-bottom:24px;"></p>
-    <div style="display:flex; gap:10px; justify-content:center;">
-      <button id="challenge-accept-btn" class="btn btn-primary" onclick="acceptChallenge()">Annehmen ✓</button>
-      <button id="challenge-decline-btn" class="btn btn-ghost" onclick="declineChallenge()">Ablehnen ✗</button>
+<div id="challenge-incoming-overlay" class="badge-popup-overlay">
+  <div class="badge-popup" style="text-align:center;">
+    <div class="badge-popup-emoji">⚔️</div>
+    <div class="badge-popup-name" id="challenge-incoming-title">Herausforderung!</div>
+    <div class="badge-popup-desc" id="challenge-incoming-desc"></div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button id="challenge-accept-btn" class="btn btn-primary" onclick="acceptChallenge()" style="flex:1">Annehmen ✓</button>
+      <button id="challenge-decline-btn" class="btn btn-ghost" onclick="declineChallenge()" style="flex:1">Ablehnen ✗</button>
     </div>
   </div>
 </div>
 
 <!-- CHALLENGE: Warten auf Gegner -->
-<div id="challenge-waiting-overlay" class="modal-overlay">
-  <div class="modal-box" style="max-width:340px; text-align:center;">
-    <div style="font-size:2.5rem; margin-bottom:8px;">⏳</div>
-    <h2 id="challenge-waiting-title" style="margin:0 0 8px">Warte auf Antwort…</h2>
-    <p id="challenge-waiting-desc" style="color:var(--text-muted); margin-bottom:24px;"></p>
-    <button id="challenge-waiting-cancel" class="btn btn-ghost" onclick="cancelChallengeWaiting()">Abbrechen</button>
+<div id="challenge-waiting-overlay" class="badge-popup-overlay">
+  <div class="badge-popup" style="text-align:center;">
+    <div class="badge-popup-emoji">⏳</div>
+    <div class="badge-popup-name" id="challenge-waiting-title">Warte auf Antwort…</div>
+    <div class="badge-popup-desc" id="challenge-waiting-desc"></div>
+    <button id="challenge-waiting-cancel" class="btn btn-ghost" onclick="cancelChallengeWaiting()" style="margin-top:16px; width:100%">Abbrechen</button>
+  </div>
+</div>
+
+<!-- CHALLENGE AUFGEBEN -->
+<div class="badge-popup-overlay" id="cs-giveup-overlay" onclick="closeChallengeGiveUpPopup()">
+  <div class="badge-popup" onclick="event.stopPropagation()">
+    <div class="badge-popup-emoji">🏳️</div>
+    <div class="badge-popup-name" id="cs-giveup-title">Aufgeben?</div>
+    <div class="badge-popup-desc" id="cs-giveup-desc">Du verlierst das Duell. Beide sehen das Ergebnis.</div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeChallengeGiveUpPopup()" style="flex:1" id="cs-giveup-cancel">Abbrechen</button>
+      <button class="btn btn-primary" onclick="executeChallengeGiveUp()" style="flex:1" id="cs-giveup-confirm">Aufgeben</button>
+    </div>
   </div>
 </div>
 
 <!-- CHALLENGE: Siegerehrung -->
-<div id="challenge-result-overlay" class="modal-overlay">
-  <div class="modal-box" style="max-width:380px; text-align:center;">
-    <div id="cr-emoji" style="font-size:3rem; margin-bottom:8px;">🎉</div>
-    <h2 id="cr-winner" style="margin:0 0 4px"></h2>
-    <p id="cr-word" style="color:var(--primary); font-weight:700; margin-bottom:20px;"></p>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
-      <div class="stat-card">
-        <span class="value" id="cr-my-attempts">—</span>
-        <span class="label" id="cr-my-label">Du</span>
-        <span style="font-size:0.78rem; color:var(--text-muted)" id="cr-my-time"></span>
+<div id="challenge-result-overlay" class="result-overlay">
+  <div class="result-card">
+    <div id="cr-emoji" class="result-emoji">🎉</div>
+    <div id="cr-winner" class="result-title"></div>
+    <div id="cr-word" class="result-word"></div>
+    <div class="result-stats">
+      <div class="result-stat">
+        <span class="result-stat-num" id="cr-my-attempts">—</span>
+        <span class="result-stat-label" id="cr-my-label">Du</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block; margin-top:4px;" id="cr-my-time"></span>
       </div>
-      <div class="stat-card">
-        <span class="value" id="cr-opp-attempts">—</span>
-        <span class="label" id="cr-opp-label">Gegner</span>
-        <span style="font-size:0.78rem; color:var(--text-muted)" id="cr-opp-time"></span>
+      <div class="result-stat">
+        <span class="result-stat-num" id="cr-opp-attempts">—</span>
+        <span class="result-stat-label" id="cr-opp-label">Gegner</span>
+        <span style="font-size:0.78rem; color:var(--text-muted); display:block; margin-top:4px;" id="cr-opp-time"></span>
       </div>
     </div>
-    <div style="display:flex; gap:10px; justify-content:center;">
+    <div class="result-actions">
       <button id="cr-close-btn" class="btn btn-ghost" onclick="closeChallengeResult()">✕ Schließen</button>
       <button id="cr-rematch-btn" class="btn btn-primary" onclick="challengeRematch()">🔄 Revanche</button>
     </div>

@@ -1,7 +1,8 @@
 Fixes:
 - octordel/quordle feste tastatur???
-- aufgeben button fahne obe nlinks
-- herausfordern (nicht sprache switchen während)
+
+- challenge bei aufgeben klick muss bei gegner auch direkt winpop up kommen
+- challenge bei kleinem bildschirm fragezeichen bei chalnge über fragezeichen also nach rechts vershcieben
 
 Ideen:
 - white mode

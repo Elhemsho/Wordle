@@ -298,9 +298,15 @@ function applyLanguage(lang) {
   if (typeof updateDrawerLanguage === 'function') updateDrawerLanguage(lang);
 }
 async function switchLanguage(lang) {
+  
   // 1. Verhindern, dass während Animationen gewechselt wird
   if (state.isAnimating || funState.isAnimating) return;
 if (state.resultPending) return;
+if (activeChallengeId) {
+    const de = state.lang === 'de';
+    showToast(de ? 'Sprache kann während einer Challenge nicht gewechselt werden.' : 'Language cannot be changed during a challenge.', 'error');
+    return;
+  }
   // 2. Internet-Check: Sprachwechsel braucht Internet, um neue Wörter zu laden
   if (!(await isOnline())) {
     showToast(state.lang === 'de' ? 'Sprachwechsel nur mit Internet möglich!' : 'Language switch requires internet!');
@@ -2904,7 +2910,9 @@ function checkHardModeConstraints(guess) {
   const de = state.lang === 'de';
   const correct = Array(DATA.config.wordLength).fill(null);
   const mustContain = {};
-  const absent = new Set();
+  // absent: nur Buchstaben die NIE als correct/present vorkamen
+  const everSeen = new Set();
+  const absentCandidates = new Set();
 
   for (const prev of hmState.guesses) {
     const result = evaluateGuess(prev, hmState.targetWord);
@@ -2914,16 +2922,23 @@ function checkHardModeConstraints(guess) {
       if (result[i] === 'correct') {
         correct[i] = ch;
         letterCount[ch] = (letterCount[ch] || 0) + 1;
+        everSeen.add(ch);
       } else if (result[i] === 'present') {
         letterCount[ch] = (letterCount[ch] || 0) + 1;
+        everSeen.add(ch);
       } else {
-        if (!letterCount[ch]) absent.add(ch);
+        // absent — nur merken, am Ende prüfen ob jemals seen
+        absentCandidates.add(ch);
       }
     }
     for (const [ch, cnt] of Object.entries(letterCount)) {
       mustContain[ch] = Math.max(mustContain[ch] || 0, cnt);
     }
   }
+
+  // absent = absentCandidates die NICHT in everSeen sind
+  // (Buchstabe kann absent UND seen sein bei Doppelbuchstaben wie PASST→S)
+  const absent = new Set([...absentCandidates].filter(ch => !everSeen.has(ch)));
 
   const guessArr = guess.split('');
 
@@ -3124,6 +3139,77 @@ function closeHardResult() {
   }
 }
 
+// ---- Aufgeben Popup ----
+function openGiveUpPopup() {
+  if (hmState.gameOver || !hmState.targetWord) return;
+  const de = state.lang === 'de';
+  setEl('giveup-title',   de ? 'Wirklich aufgeben?' : 'Really give up?');
+  setEl('giveup-desc',    de ? 'Du verlierst diese Runde und erfährst das gesuchte Wort.' : 'You lose this round and will see the word.');
+  setEl('giveup-cancel',  de ? 'Abbrechen' : 'Cancel');
+  setEl('giveup-confirm', de ? 'Aufgeben' : 'Give up');
+  document.getElementById('giveup-overlay').classList.add('open');
+}
+
+function closeGiveUpPopup() {
+  document.getElementById('giveup-overlay').classList.remove('open');
+}
+
+async function executeGiveUp() {
+  closeGiveUpPopup();
+  hmState.gameOver = true;
+  state.resultPending = true;
+  // Als verloren speichern
+  saveHardGameState(
+    state.currentUser?.username || '_guest',
+    hmState.todayKey,
+    { gameOver: true, guesses: hmState.guesses, keyColors: hmState.keyColors, startTime: hmState.startTime }
+  );
+  // Normales Lose-Overlay öffnen
+  await showHardResult(false);
+}
+
+function confirmHardModeGiveUp() {
+  if (hmState.gameOver || !hmState.targetWord) return;
+  const de = state.lang === 'de';
+  const confirmed = confirm(
+    de
+      ? `Wirklich aufgeben? Das Wort war: ${hmState.targetWord}\n\nDu verlierst diese Runde.`
+      : `Give up? The word was: ${hmState.targetWord}\n\nYou lose this round.`
+  );
+  if (!confirmed) return;
+  hardModeGiveUp();
+}
+
+async function hardModeGiveUp() {
+  const de = state.lang === 'de';
+  hmState.gameOver = true;
+
+  // Ergebnis-Overlay mit Verlier-Anzeige öffnen
+  const overlay = document.getElementById('hardmode-result-overlay');
+  setEl('hm-result-emoji', '🏳️');
+  setEl('hm-result-title', de ? 'Aufgegeben' : 'Gave Up');
+  setEl('hm-result-word', hmState.targetWord);
+  document.getElementById('hm-res-attempts').textContent = '✕';
+  document.getElementById('hm-res-wins').textContent = '—';
+  document.getElementById('hm-res-time').textContent = typeof formatTime === 'function'
+    ? formatTime(Math.floor((Date.now() - hmState.startTime) / 1000))
+    : '—';
+  setEl('hm-result-countdown-text', de ? 'Nächstes Wort morgen' : 'Next word tomorrow');
+  document.getElementById('hm-result-timer').textContent = '';
+  overlay.classList.add('open');
+
+  // Als gespielt markieren (verloren, Versuche = 7)
+  if (state.currentUser) {
+    try {
+      const todayKey = getHmTodayKey(state.lang);
+      saveHmGameState(state.currentUser.username, todayKey, {
+        gameOver: true, guesses: hmState.guesses, keyColors: hmState.keyColors,
+        startTime: hmState.startTime, won: false
+      });
+    } catch(e) {}
+  }
+}
+
 let hmResultCountdownInterval = null;
 function startHardResultCountdown() {
   if (hmResultCountdownInterval) clearInterval(hmResultCountdownInterval);
@@ -3288,6 +3374,7 @@ async function pollChallenges() {
   if (!state.currentUser) return;
   try {
     const incoming = await sbFetch(`challenges?to_user=eq.${state.currentUser.id}&status=eq.pending&select=*`);
+    console.log('[POLL] incoming challenges:', incoming);
     for (const c of (incoming || [])) {
       if (!_lastSeenChallengeIds.has(c.id)) {
         _lastSeenChallengeIds.add(c.id);
@@ -3296,6 +3383,7 @@ async function pollChallenges() {
     }
     if (activeChallengeId) {
       const rows = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+      console.log('[POLL-ACTIVE] record:', rows?.[0]?.status, 'abandoned_by:', rows?.[0]?.abandoned_by);
       if (rows?.[0]) onChallengeUpdate(rows[0]);
     }
   } catch(e) {}
@@ -3465,6 +3553,8 @@ function startChallengeGame(challenge) {
   // Navigate zur Challenge-Seite
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-challenge').classList.add('active');
+  lockLangSwitcher(true);
+  lockChallengeNavigation(true);
 
   buildChallengeGrid();
   buildChallengeKeyboard();
@@ -3476,6 +3566,115 @@ function startChallengeGame(challenge) {
     banner.innerHTML = `⚔️ <strong>Challenge vs ${oppName}</strong> — ${de ? 'Gleiches Wort!' : 'Same word!'}`;
     banner.style.display = 'block';
   }
+}
+
+// ---- Navigation während Challenge sperren ----
+function lockChallengeNavigation(locked) {
+  // Header-Buttons
+  document.querySelectorAll('header button, header .btn').forEach(btn => {
+    if (btn.id === 'cs-giveup-btn') return; // Aufgeben bleibt aktiv
+    btn.disabled = locked;
+    btn.style.opacity = locked ? '0.3' : '';
+    btn.style.pointerEvents = locked ? 'none' : '';
+  });
+  // Drawer
+  const drawer = document.getElementById('btn-hamburger');
+  if (drawer) { drawer.disabled = locked; drawer.style.opacity = locked ? '0.3' : ''; }
+}
+
+// ---- Challenge Info Popup ----
+function toggleChallengeInfo() {
+  const popup = document.getElementById('cs-info-popup');
+  if (!popup) return;
+  const de = state.lang === 'de';
+  if (popup.style.display === 'none') {
+    popup.innerHTML = `
+      <div class="hm-rule"><span class="hm-rule-icon">⚔️</span><span class="hm-rule-text">${de ? 'Beide Spieler erhalten dasselbe zufällige Wort.' : 'Both players get the same random word.'}</span></div>
+      <div class="hm-rule"><span class="hm-rule-icon">🏆</span><span class="hm-rule-text">${de ? 'Wer das Wort in weniger Versuchen löst, gewinnt.' : 'Fewer guesses wins. Ties broken by time.'}</span></div>
+      <div class="hm-rule"><span class="hm-rule-icon">⏱️</span><span class="hm-rule-text">${de ? 'Bei gleichen Versuchen gewinnt der Schnellere.' : 'Same guesses? Faster player wins.'}</span></div>
+      <div class="hm-rule"><span class="hm-rule-icon">🏳️</span><span class="hm-rule-text">${de ? 'Wer aufgibt verliert sofort — der Gegner gewinnt.' : 'Giving up means instant loss — opponent wins.'}</span></div>
+    `;
+    popup.style.display = 'block';
+    setTimeout(() => {
+      document.addEventListener('click', function close(e) {
+        if (!popup.contains(e.target) && e.target.id !== 'cs-info-btn') {
+          popup.style.display = 'none';
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 10);
+  } else {
+    popup.style.display = 'none';
+  }
+}
+
+// ---- Challenge Aufgeben ----
+function openChallengeGiveUpPopup() {
+  console.log('[GIVEUP] openChallengeGiveUpPopup called, csState.gameOver:', csState.gameOver, 'activeChallengeId:', activeChallengeId);
+  if (csState.gameOver) return;
+  const de = state.lang === 'de';
+  setEl('cs-giveup-title',   de ? 'Wirklich aufgeben?' : 'Really give up?');
+  setEl('cs-giveup-desc',    de ? 'Du verlierst das Duell. Beide sehen sofort das Ergebnis.' : 'You lose the duel. Both players see the result immediately.');
+  setEl('cs-giveup-cancel',  de ? 'Abbrechen' : 'Cancel');
+  setEl('cs-giveup-confirm', de ? 'Aufgeben' : 'Give up');
+  document.getElementById('cs-giveup-overlay').classList.add('open');
+}
+
+function closeChallengeGiveUpPopup() {
+  document.getElementById('cs-giveup-overlay').classList.remove('open');
+}
+
+async function executeChallengeGiveUp() {
+  closeChallengeGiveUpPopup();
+  console.log('[EXEC] executeChallengeGiveUp called, activeChallengeId:', activeChallengeId);
+  if (!activeChallengeId) return;
+  csState.gameOver = true;
+  _challengeResultSaved = true;
+  const timeSec = Math.floor((Date.now() - challengeStartTime) / 1000);
+
+  try {
+    const rows = await sbFetch(`challenges?id=eq.${activeChallengeId}&select=*`);
+    const c = rows?.[0];
+    if (!c) return;
+    const isP1 = c.from_user === state.currentUser.id;
+
+    // Eigene Attempts als 7 (verloren) + abandoned_by setzen
+    const patch = {
+      status: 'finished',
+      abandoned_by: state.currentUser.id,
+      [isP1 ? 'p1_attempts' : 'p2_attempts']: 7,
+      [isP1 ? 'p1_time' : 'p2_time']: timeSec,
+      [isP1 ? 'p1_done' : 'p2_done']: true,
+      [isP1 ? 'p2_done' : 'p1_done']: true,
+    };
+
+    await sbFetch(`challenges?id=eq.${activeChallengeId}`, {
+      method: 'PATCH', body: JSON.stringify(patch), prefer: 'return=minimal'
+    });
+
+    lockChallengeNavigation(false);
+    lockLangSwitcher(false);
+    removePersistentChallengeToast();
+    document.getElementById('challenge-game-banner').style.display = 'none';
+
+    // Ich habe verloren — Ergebnis sofort zeigen
+    const fakeRecord = {
+      ...c,
+      ...patch,
+      status: 'finished',
+      [isP1 ? 'p2_done' : 'p1_done']: true,
+      [isP1 ? 'p2_attempts' : 'p1_attempts']: c[isP1 ? 'p2_attempts' : 'p1_attempts'],
+    };
+    showChallengeResult(fakeRecord);
+  } catch(e) { console.error('executeChallengeGiveUp error:', e); }
+}
+
+function lockLangSwitcher(locked) {
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.disabled = locked;
+    btn.style.opacity = locked ? '0.35' : '';
+    btn.style.cursor = locked ? 'not-allowed' : '';
+  });
 }
 
 function buildChallengeGrid() {
@@ -3696,9 +3895,31 @@ async function pollUntilBothDone() {
 let _opponentDoneToast = null;
 
 function onChallengeUpdate(record) {
+   console.log('[UPDATE] onChallengeUpdate:', record.status, 'abandoned_by:', record.abandoned_by, 'currentUser:', state.currentUser?.id);
+  console.log('[UPDATE] activeChallengeId:', activeChallengeId, 'record.id:', record.id, 'match:', record.id === activeChallengeId);
   if (!activeChallengeId || record.id !== activeChallengeId) return;
   const de = state.lang === 'de';
   const isP1 = record.from_user === state.currentUser?.id;
+  if (record.status === 'finished' && record.abandoned_by && record.abandoned_by !== state.currentUser?.id) {
+    const oppName = activeChallengeOpponent?.username || '?';
+    removePersistentChallengeToast();
+    csState.gameOver = true;
+    lockChallengeNavigation(false);
+    lockLangSwitcher(false);
+    document.getElementById('challenge-game-banner').style.display = 'none';
+    showToast(de ? `${oppName} hat aufgegeben! Du gewinnst! 🎉` : `${oppName} gave up! You win! 🎉`, 'success', 5000);
+    // Fake-Result anzeigen: ich gewinne, Gegner hat 7
+    const fakeRecord = {
+      ...record,
+      status: 'finished',
+      [isP1 ? 'p2_attempts' : 'p1_attempts']: 7,
+      [isP1 ? 'p2_done' : 'p1_done']: true,
+      [isP1 ? 'p1_done' : 'p2_done']: true,
+    };
+    // Kurze Verzögerung damit Toast lesbar ist
+    setTimeout(() => showChallengeResult(fakeRecord), 2000);
+    return;
+  }
   const opponentDone = isP1 ? record.p2_done : record.p1_done;
   const myDone = isP1 ? record.p1_done : record.p2_done;
 
@@ -3763,20 +3984,27 @@ async function showChallengeResult(challenge) {
   const oppTime = isP1 ? challenge.p2_time : challenge.p1_time;
   const oppName = activeChallengeOpponent?.username || '?';
 
-  const myFailed = myAttempts === 7 || myAttempts == null;
-  const oppFailed = oppAttempts === 7 || oppAttempts == null;
+  const myFailed  = myAttempts === 7;
+const oppFailed = oppAttempts === 7;
+
+// Und Gewinner-Logik anpassen für den Fall dass einer null hat (= Gegner aufgegeben, ich hab noch nicht gespielt):
+// Nach den myFailed/oppFailed Zeilen, NEU einfügen:
+const myNotPlayed  = myAttempts == null;
+const oppNotPlayed = oppAttempts == null;
 
   let iWon = false;
   let winner = '', emoji = '';
-  if (myFailed && oppFailed) { winner = de ? 'Unentschieden!' : 'Draw!'; emoji = '🤝'; }
-  else if (myFailed) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; }
-  else if (oppFailed) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; iWon = true; }
-  else if (myAttempts < oppAttempts) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; iWon = true; }
-  else if (oppAttempts < myAttempts) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; }
-  else if (myTime != null && oppTime != null && myTime < oppTime) { winner = de ? 'Du gewinnst! (schneller)' : 'You win! (faster)'; emoji = '🎉'; iWon = true; }
-  else if (myTime != null && oppTime != null && oppTime < myTime) { winner = de ? `${oppName} gewinnt! (schneller)` : `${oppName} wins! (faster)`; emoji = '😔'; }
-  else { winner = de ? 'Unentschieden!' : 'Draw!'; emoji = '🤝'; }
-
+  if (oppFailed && !myFailed && !myNotPlayed) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; iWon = true; }
+else if (oppFailed && myNotPlayed) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; iWon = true; } // Gegner aufgegeben, ich noch nicht gespielt
+else if (myFailed && !oppFailed && !oppNotPlayed) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; }
+else if (myFailed && oppNotPlayed) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; } // ich aufgegeben
+else if (myFailed && oppFailed) { winner = de ? 'Unentschieden!' : 'Draw!'; emoji = '🤝'; }
+else if (myNotPlayed || oppNotPlayed) { winner = de ? 'Ausstehend…' : 'Pending…'; emoji = '⏳'; }
+else if (myAttempts < oppAttempts) { winner = de ? 'Du gewinnst!' : 'You win!'; emoji = '🎉'; iWon = true; }
+else if (oppAttempts < myAttempts) { winner = de ? `${oppName} gewinnt!` : `${oppName} wins!`; emoji = '😔'; }
+else if (myTime < oppTime) { winner = de ? 'Du gewinnst! (schneller)' : 'You win! (faster)'; emoji = '🎉'; iWon = true; }
+else if (oppTime < myTime) { winner = de ? `${oppName} gewinnt! (schneller)` : `${oppName} wins! (faster)`; emoji = '😔'; }
+else { winner = de ? 'Unentschieden!' : 'Draw!'; emoji = '🤝'; }
   // Sieg in DB inkrementieren (nur einmal)
   if (iWon && state.currentUser) {
     const flagKey = `cw_${activeChallengeId}`;
@@ -3806,15 +4034,17 @@ async function showChallengeResult(challenge) {
   setEl('cr-opp-time', oppTime != null ? formatTime(oppTime) : '—');
   setEl('cr-close-btn', de ? '✕ Schließen' : '✕ Close');
   setEl('cr-rematch-btn', de ? '🔄 Revanche' : '🔄 Rematch');
-  overlay.classList.add('open');
+    overlay.classList.add('open');
 }
-
 function closeChallengeResult() {
   document.getElementById('challenge-result-overlay')?.classList.remove('open');
   document.getElementById('challenge-game-banner').style.display = 'none';
   activeChallengeId = null;
   _challengeResultSaved = false;
-  navigate('friends');
+  navigate(_closeResultGoHome ? 'home' : 'friends');
+  _closeResultGoHome = false;
+  lockLangSwitcher(false);
+  lockChallengeNavigation(false);
 }
 
 function challengeRematch() {
@@ -3823,6 +4053,47 @@ function challengeRematch() {
   activeChallengeId = null;
   _challengeResultSaved = false;
   if (opp?.id) sendChallenge(opp.id, opp.username);
+}
+
+// ---- Logo-Click während Challenge ----
+let _closeResultGoHome = false;
+
+function handleLogoClick() {
+  console.log('[LOGO] handleLogoClick called, activeChallengeId:', activeChallengeId, 'csState.gameOver:', csState.gameOver);
+  if (activeChallengeId && !csState.gameOver) {
+    _closeResultGoHome = true;
+    openChallengeGiveUpPopup();
+  } else {
+    navigate('home');
+  }
+}
+// ---- Page Visibility / beforeunload — Challenge abbrechen bei Seitenverlassen ----
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && activeChallengeId && !csState.gameOver) {
+    abandonChallenge();
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (activeChallengeId && !csState.gameOver) {
+    abandonChallenge();
+  }
+});
+
+function abandonChallenge() {
+  if (!activeChallengeId || !state.currentUser || csState.gameOver) return;
+  const timeSec = Math.floor((Date.now() - (challengeStartTime || Date.now())) / 1000);
+  fetch(`${SUPABASE_URL}/rest/v1/challenges?id=eq.${activeChallengeId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ status: 'finished', abandoned_by: state.currentUser.id }),
+    keepalive: true
+  });
 }
 
 // ============================================================
