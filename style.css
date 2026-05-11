@@ -1063,6 +1063,11 @@ header        { padding: 6px 8px; gap: 4px; }
   border-color: #ffd700;
   box-shadow: 0 4px 20px rgba(255,215,0,0.4);
 }
+.badge-icon-wrap.tier-diamond {
+  background: linear-gradient(135deg, #0a1a2e, #0d2d4a);
+  border-color: #7df9ff;
+  box-shadow: 0 4px 24px rgba(125,249,255,0.5), 0 0 8px rgba(125,249,255,0.25);
+}
 .badge-icon-wrap.tier-locked {
   background: var(--surface-light);
   border-color: var(--surface-border);
@@ -1083,6 +1088,7 @@ header        { padding: 6px 8px; gap: 4px; }
 .tier-bronze .badge-tier-dot { background: #cd7f32; color: #fff; }
 .tier-silver .badge-tier-dot { background: #a8b3c0; color: #111; }
 .tier-gold   .badge-tier-dot { background: #ffd700; color: #111; }
+.tier-diamond .badge-tier-dot { background: #7df9ff; color: #061420; font-size: 0.5rem; }
 
 .badge-label {
   font-size: 0.62rem;
@@ -1355,6 +1361,7 @@ white-space: normal;
 .lb-pinned-badge.tier-bronze { background: linear-gradient(135deg,#3d2b1a,#5c3d22); border-color: #cd7f32; }
 .lb-pinned-badge.tier-silver { background: linear-gradient(135deg,#1e2228,#2e353f); border-color: #a8b3c0; }
 .lb-pinned-badge.tier-gold   { background: linear-gradient(135deg,#2d2200,#4a3800); border-color: #ffd700; }
+.lb-pinned-badge.tier-diamond { background: linear-gradient(135deg,#0a1a2e,#0d2d4a); border-color: #7df9ff; box-shadow: 0 0 6px rgba(125,249,255,0.4); }
 
 /* Pin-Indicator auf Badge-Grid Item */
 .badge-item.pinned .badge-icon-wrap::after {

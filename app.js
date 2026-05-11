@@ -445,6 +445,7 @@ function logout() {
 }
 
 function setupGamePage() {
+  _checkIncompleteYesterdayGame(state.lang);
   // 1. IDs und Status zurücksetzen
   state.gameId = (state.gameId || 0) + 1;
   state.isAnimating = false;
@@ -749,6 +750,54 @@ function saveCurrentGame() {
     gameOver: state.gameOver, guesses: state.guesses,
     keyColors: state.keyColors, startTime: state.startTime
   });
+}
+
+async function _checkIncompleteYesterdayGame(lang) {
+  if (!state.currentUser) return;
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const yesterdayKey = `${lang}_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
+  const gs = getGameState(state.currentUser.username, yesterdayKey);
+  if (!gs || gs.gameOver || !gs.guesses || gs.guesses.length === 0) return;
+
+  // Incomplete game vom Vortag → als Niederlage werten
+  const flagKey = `wg_incomplete_counted_${state.currentUser.username}_${yesterdayKey}`;
+  if (localStorage.getItem(flagKey)) return; // schon gewertet
+  localStorage.setItem(flagKey, '1');
+
+  try {
+    const userId = state.currentUser.id;
+    const today_str = new Date().toDateString();
+    const existing = await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`);
+    const s = existing && existing.length > 0 ? existing[0] : null;
+
+    // Nur werten wenn gestern noch NICHT in last_played_date steht
+    const yesterday_str = d.toDateString();
+    if (s && s.last_played_date === yesterday_str) return; // schon gewertet (z.B. durch normales Spielende)
+
+    const played = (s ? s.played : 0) + 1;
+    const wonCount = s ? s.won : 0;
+    const totalAttempts = (s ? s.total_attempts : 0) + 6;
+    const bestStreak = s ? (s.best_streak || 0) : 0;
+    // Streak bricht — aber last_played_date auf gestern setzen damit heute noch zählen kann
+    const statsData = {
+      user_id: userId, lang,
+      played, won: wonCount, total_attempts: totalAttempts,
+      streak: 0, best_streak: bestStreak,
+      last_played_date: yesterday_str
+    };
+    if (s) await sbFetch(`stats?user_id=eq.${userId}&lang=eq.${lang}`, { method: 'PATCH', body: JSON.stringify(statsData), prefer: 'return=minimal' });
+    else await sbFetch('stats', { method: 'POST', body: JSON.stringify(statsData), prefer: 'return=minimal' });
+
+    // Auch Leaderboard-Eintrag für gestern als Niederlage
+    const lbEx = await sbFetch(`leaderboard?user_id=eq.${userId}&lang=eq.${lang}&day_key=eq.${yesterdayKey}`);
+    if (!lbEx || lbEx.length === 0) {
+      await sbFetch('leaderboard', { method: 'POST', body: JSON.stringify({
+        user_id: userId, username: state.currentUser.username, lang,
+        day_key: yesterdayKey, attempts: 7, time_seconds: 0
+      }), prefer: 'return=minimal' });
+    }
+  } catch(e) { console.error('Incomplete game stat error:', e); }
 }
 
 async function updateStats(won) {
@@ -1700,44 +1749,52 @@ const BADGE_DEFS = [
   { id: 'wins_bronze', group: 'wins', tier: 'bronze', emoji: '🏅', name: { de: 'Siegesläufer', en: 'Winner' },        desc: { de: '10 Siege gesamt',   en: '10 total wins' },    threshold: 10 },
   { id: 'wins_silver', group: 'wins', tier: 'silver', emoji: '🥈', name: { de: 'Siegesläufer', en: 'Winner' },        desc: { de: '50 Siege gesamt',   en: '50 total wins' },    threshold: 50 },
   { id: 'wins_gold',   group: 'wins', tier: 'gold',   emoji: '🥇', name: { de: 'Siegesläufer', en: 'Winner' },        desc: { de: '100 Siege gesamt',  en: '100 total wins' },   threshold: 100 },
+  { id: 'wins_diamond',     group: 'wins',     tier: 'diamond', emoji: '💎', name: { de: 'Siegesläufer',  en: 'Winner' },       desc: { de: '500 Siege gesamt',          en: '500 total wins' },                threshold: 500 },
 
   // --- Upgradeable: Längste Streak ---
   { id: 'streak_bronze', group: 'streak', tier: 'bronze', emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },  desc: { de: '7 Tage Serie',      en: '7-day streak' },     threshold: 7 },
   { id: 'streak_silver', group: 'streak', tier: 'silver', emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },  desc: { de: '30 Tage Serie',     en: '30-day streak' },    threshold: 30 },
   { id: 'streak_gold',   group: 'streak', tier: 'gold',   emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },  desc: { de: '100 Tage Serie',    en: '100-day streak' },   threshold: 100 },
+  { id: 'streak_diamond',   group: 'streak',   tier: 'diamond', emoji: '🔥', name: { de: 'Flammenwerfer', en: 'On Fire' },      desc: { de: '365 Tage Serie',            en: '365-day streak' },                threshold: 365 },
 
   // --- Upgradeable: Dordle ---
-  { id: 'dordle_bronze', group: 'dordle', tier: 'bronze', emoji: '🎮', name: { de: 'Doppelspieler', en: 'Duelist' },  desc: { de: '5× Dordle gewonnen',  en: '5× Dordle wins' },  threshold: 5 },
-  { id: 'dordle_silver', group: 'dordle', tier: 'silver', emoji: '🎮', name: { de: 'Doppelspieler', en: 'Duelist' },  desc: { de: '25× Dordle gewonnen', en: '25× Dordle wins' }, threshold: 25 },
-  { id: 'dordle_gold',   group: 'dordle', tier: 'gold',   emoji: '🎮', name: { de: 'Doppelspieler', en: 'Duelist' },  desc: { de: '50× Dordle gewonnen', en: '50× Dordle wins' }, threshold: 50 },
+  { id: 'dordle_bronze', group: 'dordle', tier: 'bronze', emoji: '🎮', name: { de: 'Doppelkampf', en: 'Double Down' },  desc: { de: '5× Dordle gewonnen',  en: '5× Dordle wins' },  threshold: 5 },
+  { id: 'dordle_silver', group: 'dordle', tier: 'silver', emoji: '🎮', name: { de: 'Doppelkampf', en: 'Double Down' },  desc: { de: '15× Dordle gewonnen', en: '15× Dordle wins' }, threshold: 15 },
+  { id: 'dordle_gold',   group: 'dordle', tier: 'gold',   emoji: '🎮', name: { de: 'Doppelkampf', en: 'Double Down' },  desc: { de: '50× Dordle gewonnen', en: '50× Dordle wins' }, threshold: 50 },
+  { id: 'dordle_diamond',   group: 'dordle',   tier: 'diamond', emoji: '🎮', name: { de: 'Doppelkampf',   en: 'Double Down' },  desc: { de: '100× Dordle gewonnen',      en: '100× Dordle wins' },              threshold: 100 },
 
   // --- Upgradeable: Quordle ---
   { id: 'quordle_bronze', group: 'quordle', tier: 'bronze', emoji: '🪟', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '5× Quordle gewonnen',  en: '5× Quordle wins' },  threshold: 5 },
-  { id: 'quordle_silver', group: 'quordle', tier: 'silver', emoji: '🪟', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '25× Quordle gewonnen', en: '25× Quordle wins' }, threshold: 25 },
+  { id: 'quordle_silver', group: 'quordle', tier: 'silver', emoji: '🪟', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '15× Quordle gewonnen', en: '15× Quordle wins' }, threshold: 15 },
   { id: 'quordle_gold',   group: 'quordle', tier: 'gold',   emoji: '🪟', name: { de: 'Vierfalt', en: 'Quadrant' },    desc: { de: '50× Quordle gewonnen', en: '50× Quordle wins' }, threshold: 50 },
+  { id: 'quordle_diamond',  group: 'quordle',  tier: 'diamond', emoji: '🪟', name: { de: 'Vierfalt',      en: 'Quadrant' },     desc: { de: '100× Quordle gewonnen',     en: '100× Quordle wins' },             threshold: 100 },
 
   // --- Upgradeable: Octordle ---
   { id: 'octordle_bronze', group: 'octordle', tier: 'bronze', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '5× Octordle gewonnen',  en: '5× Octordle wins' },  threshold: 5 },
-  { id: 'octordle_silver', group: 'octordle', tier: 'silver', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '25× Octordle gewonnen', en: '25× Octordle wins' }, threshold: 25 },
+  { id: 'octordle_silver', group: 'octordle', tier: 'silver', emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '15× Octordle gewonnen', en: '15× Octordle wins' }, threshold: 15 },
   { id: 'octordle_gold',   group: 'octordle', tier: 'gold',   emoji: '🐙', name: { de: 'Achtarmig', en: 'Octopus' },  desc: { de: '50× Octordle gewonnen', en: '50× Octordle wins' }, threshold: 50 },
+  { id: 'octordle_diamond', group: 'octordle', tier: 'diamond', emoji: '🐙', name: { de: 'Achtarmig',     en: 'Octopus' },      desc: { de: '100× Octordle gewonnen',    en: '100× Octordle wins' },            threshold: 100 },
 
   // --- Upgradeable: Hard Mode ---
   { id: 'hardmode_bronze', group: 'hardmode', tier: 'bronze', emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '1× Hard Mode gewonnen',  en: '1× Hard Mode win' },  threshold: 1 },
-  { id: 'hardmode_silver', group: 'hardmode', tier: 'silver', emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '5× Hard Mode gewonnen',  en: '5× Hard Mode wins' }, threshold: 5 },
-  { id: 'hardmode_gold',   group: 'hardmode', tier: 'gold',   emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '15× Hard Mode gewonnen', en: '15× Hard Mode wins' }, threshold: 15 },
-
-  // --- Einmalig: Glückspilz (1 Versuch) ---
-  { id: 'lucky',   group: 'lucky',   tier: 'gold', emoji: '🍀', name: { de: 'Glückspilz',    en: 'Lucky Guess' },   desc: { de: 'Daily in 1 Versuch gelöst',           en: 'Solved daily in 1 attempt' } },
+  { id: 'hardmode_silver', group: 'hardmode', tier: 'silver', emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '5× Hard Mode gewonnen',  en: '5× Hard Mode wins' }, threshold: 10 },
+  { id: 'hardmode_gold',   group: 'hardmode', tier: 'gold',   emoji: '💀', name: { de: 'Harter Hund', en: 'Hard Hitter' }, desc: { de: '15× Hard Mode gewonnen', en: '15× Hard Mode wins' }, threshold: 25 },
+  { id: 'hardmode_diamond', group: 'hardmode', tier: 'diamond', emoji: '💀', name: { de: 'Harter Hund',   en: 'Hard Hitter' },  desc: { de: '50× Hard Mode gewonnen',    en: '50× Hard Mode wins' },            threshold: 100 },
 
 // --- Unter 1min
 { id: 'speed_bronze', group: 'speed', tier: 'bronze', emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: 'Daily in unter 1 Min gelöst',       en: 'Solved daily in under 1 min' },      threshold: 1 },
-{ id: 'speed_silver', group: 'speed', tier: 'silver', emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: '3× Daily in unter 1 Min gelöst',  en: '3× daily solved in under 1 min' },   threshold: 3 },
-{ id: 'speed_gold',   group: 'speed', tier: 'gold',   emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: '5× Daily in unter 1 Min gelöst',  en: '5× daily solved in under 1 min' },   threshold: 5 },
+{ id: 'speed_silver', group: 'speed', tier: 'silver', emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: '3× Daily in unter 1 Min gelöst',  en: '3× daily solved in under 1 min' },   threshold: 5 },
+{ id: 'speed_gold',   group: 'speed', tier: 'gold',   emoji: '⚡', name: { de: 'Blitzmerker', en: 'Speed Solver' }, desc: { de: '5× Daily in unter 1 Min gelöst',  en: '5× daily solved in under 1 min' },   threshold: 15 },
+{ id: 'speed_diamond',    group: 'speed',    tier: 'diamond', emoji: '⚡', name: { de: 'Blitzmerker',   en: 'Speed Solver' }, desc: { de: '20× Daily in unter 1 Min gelöst', en: '20× daily solved in under 1 min' }, threshold: 50 },
 
 // --- Challenge Wins ---
   { id: 'challenge_bronze', group: 'challenge', tier: 'bronze', emoji: '⚔️', name: { de: 'Duellant', en: 'Duelist' }, desc: { de: '1× Challenge gewonnen', en: '1× Challenge win' }, threshold: 1 },
   { id: 'challenge_silver', group: 'challenge', tier: 'silver', emoji: '⚔️', name: { de: 'Duellant', en: 'Duelist' }, desc: { de: '5× Challenge gewonnen', en: '5× Challenge wins' }, threshold: 5 },
   { id: 'challenge_gold',   group: 'challenge', tier: 'gold',   emoji: '⚔️', name: { de: 'Duellant', en: 'Duelist' }, desc: { de: '15× Challenge gewonnen', en: '15× Challenge wins' }, threshold: 15 },
+  { id: 'challenge_diamond', group: 'challenge', tier: 'diamond', emoji: '⚔️', name: { de: 'Duellant', en: 'Duelist' }, desc: { de: '50× Challenge gewonnen', en: '50× Challenge wins' }, threshold: 50 },
+
+  // --- Einmalig: Glückspilz (1 Versuch) ---
+  { id: 'lucky',   group: 'lucky',   tier: 'gold', emoji: '🍀', name: { de: 'Glückspilz',    en: 'Lucky Guess' },   desc: { de: 'Daily in 1 Versuch gelöst',           en: 'Solved daily in 1 attempt' } },
 
   // --- Einmalig: Nachteule ---
   { id: 'owl',     group: 'owl',     tier: 'gold', emoji: '🦉', name: { de: 'Nachteule',      en: 'Night Owl' },     desc: { de: 'Daily 5 Min vor Mitternacht gelöst',  en: 'Solved daily 5 min before midnight' } },
@@ -1974,7 +2031,7 @@ async function renderBadges(earnedSet) {
   const pinned = state.currentUser ? await loadPinnedBadges(state.currentUser.id) : [];
   renderProfilePinned(pinned);
 
-  const tierOrder = { gold: 0, silver: 1, bronze: 2 };
+  const tierOrder = { diamond: 0, gold: 1, silver: 2, bronze: 3 };
   const groups = {};
   BADGE_DEFS.forEach(b => {
     if (!groups[b.group]) groups[b.group] = { defs: [], earned: null };
@@ -1990,7 +2047,7 @@ async function renderBadges(earnedSet) {
   });
 
   grid.innerHTML = sortedGroups.map(g => {
-    const tiers = ['gold','silver','bronze'];
+    const tiers = ['diamond','gold','silver','bronze'];
     let display = null;
     for (const t of tiers) {
       const found = g.defs.find(d => d.tier === t && earnedSet.has(d.id));
@@ -1999,7 +2056,7 @@ async function renderBadges(earnedSet) {
     const locked = !display;
     const def = display || g.defs[g.defs.length - 1];
     const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
-    const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
+    const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : def.tier === 'gold' ? 'G' : '💎'}</div>`;
     const nextDef = locked
       ? g.defs.find(d => d.tier === 'bronze')
       : g.defs.find(d => !earnedSet.has(d.id) && tierOrder[d.tier] < tierOrder[def.tier]);
@@ -2478,13 +2535,13 @@ const winrate    = played > 0 ? Math.round((won / played) * 100) + '%' : '0%';
       return 0;
     });
     grid.innerHTML = sortedGroups.map(g => {
-      const tiers = ['gold','silver','bronze'];
+      const tiers = ['diamond','gold','silver','bronze'];
       let display = null;
       for (const t of tiers) { const f = g.defs.find(d => d.tier === t && earned.has(d.id)); if (f) { display = f; break; } }
       const locked = !display;
       const def = display || g.defs[g.defs.length - 1];
       const tierClass = locked ? 'tier-locked' : `tier-${def.tier}`;
-      const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G'}</div>`;
+      const tierLabel = locked ? '' : `<div class="badge-tier-dot">${def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : def.tier === 'gold' ? 'G' : '💎'}</div>`;
       const tooltipBase = locked ? (g.defs.find(d => d.tier === 'bronze')?.desc[lang] || def.desc[lang]) : def.desc[lang];
       return `<div class="badge-item${locked ? '' : ' earned'}" onclick="toggleBadgeTooltip(this,'${def.name[lang]}','${tooltipBase}')">
         <div class="badge-icon-wrap ${tierClass}">${def.emoji}${tierLabel}</div>
@@ -2626,7 +2683,7 @@ function renderProfilePinned(pinned) {
       return `<div class="pinned-badge-slot" title="${de ? 'Badge anheften' : 'Pin a badge'}">＋</div>`;
     }
     const tierClass = `tier-${def.tier}`;
-    const dotLabel = def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : 'G';
+    const dotLabel = def.tier === 'bronze' ? 'B' : def.tier === 'silver' ? 'S' : def.tier === 'gold' ? 'G' : '💎';
     return `<div class="pinned-badge-slot filled badge-icon-wrap ${tierClass}" 
   title="${def.name[de ? 'de' : 'en']}"
   onclick="handleBadgeClick(this,'${def.id}','${def.name[de ? 'de' : 'en']}','${def.desc[de ? 'de' : 'en']}')"
